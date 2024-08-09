@@ -1,100 +1,77 @@
 # rl-cli
 Runloop CLI for using runloop APIs
 
-## Setup
-```
-python3 -m venv .venv && pip install -r requirements.txt
-```
+**NOTE: This project is still in early alpha release**
 
-## Set up your environment
+# Setup
+
+(Homebrew instructions coming soon...)
+
+## For developers
 ```commandline
+# Clone the repo
+mkdir -p ~/source/ && cd ~/source/
+git clone https://github.com/runloopai/rl-cli.git
+cd rl-cli/
+
+# Setup the venv and dev tools
+python3 -m venv .venv && pip install -r dev-requirements.txt
+
+# Install to your local machine
+# Use 'which python3' to find your system python
+flit install --symlink --python </path/to/system/python>
+
+# In a new terminal
 export RUNLOOP_API_KEY=<your-api-key>
 export GITHUB_TOKEN=<your-github-token>
+rl-cli --help
 ```
 
-## Test the devbox
+# Quick reference
 
-### Create devbox
+## Devbox
+
+### Create a devbox and run a single command
 ```commandline
-python -m main --cmd create --env_vars HELLO=world --entrypoint "echo \$HELLO"
+rl-cli devbox create --env_vars HELLO=world --entrypoint "echo \$HELLO"
 >
-devbox created devbox={'id': 'dbx_2ws7NkWXJfhEwhnlVWfmy', 'status': 'provisioning', 'create_time_ms': 1718667134290}
+create devbox={
+    "id": "dbx_2xMDUOsKMiZBYKsvSRtMA",
+    "blueprint_id": null,
+    "create_time_ms": 1723229557715,
+    "end_time_ms": null,
+    "initiator_id": null,
+    "initiator_type": "invocation",
+    "name": null,
+    "status": "provisioning"
+}                                                                                                                              [1.03s]
 ```
 
 ### Observe logs
 ```commandline
-python -m main --cmd logs --id dbx_2ws7IOtjxnJgLsBIpU9nn  
+rl-cli devbox logs --id dbx_2xMDUOsKMiZBYKsvSRtMA
 >
-1718666928563 info Initializing devbox...
-1718666928615 info Devbox setup complete
-1718666928631 info world
+2024-08-09 11:52:38  Initializing devbox...
+2024-08-09 11:52:38  Devbox setup complete
+2024-08-09 11:52:38 -> echo $HELLO
+2024-08-09 11:52:38  world
+2024-08-09 11:52:38  world
+2024-08-09 11:52:38  None
 ```
 
-### Devbox is automatically shutdown when entrypoint complete
+### Check the devbox status
 ```commandline
-python -m main --cmd get --id dbx_2ws7IOtjxnJgLsBIpU9nn
+rl-cli devbox get --id dbx_2ws7IOtjxnJgLsBIpU9nn
 >   
-devboxes={'id': 'dbx_2ws7IOtjxnJgLsBIpU9nn', 'status': 'shutdown', 'create_time_ms': 1718666927593}
-```
-
-## Test with code and a devbox
-Create a CodeHandle reference to repository
-```commandline
-python -m main --cmd create --res code --repo minimal-fastapi-postgres-template --owner rafsaf
-
->
-{
-    "id": "bnv_2wkCIPg4Ce25dGaW1pDVl",
-    "repo_name": "minimal-fastapi-postgres-template",
-    "owner": "rafsaf",
-    "commit_hash": "ba24f1a5bae677a27e83dd4ac815c25bd4fcd36f"
-}
-```
-
-Launch a devbox with code handle
-```commandline
-python -m main --cmd create --res devbox --id bnv_2wkCIPg4Ce25dGaW1pDVl \
- --entrypoint "set -eux && cd code && uv venv && source .venv/bin/activate \
-  && poetry install && cp .env.example .env && docker compose up -d && pytest"
->
-{
-    "id": "dbx_2wkaVyVJmCfKpBJ6XX70F",
-    "status": "provisioning"
-}  
-```
-
-Query for devbox to be in running state
-```commandline
-python -m main --cmd get --res devbox --id dbx_2wkaVyVJmCfKpBJ6XX70F
->
-{
-    "id": "dbx_2wkaVyVJmCfKpBJ6XX70F",
-    "status": "running"
-}
-```
-
-Check out result of devbox executions
-```commandline
-python -m main --cmd logs --res devbox --id dbx_2wkaVyVJmCfKpBJ6XX70F
->
-{
-1717525731380 info app/tests/test_users/test_reset_password.py::test_reset_current_user_password_is_changed_in_db 
-1717525731420 info app/tests/test_users/test_reset_password.py::test_reset_current_user_password_status_code 
-1717525731431 info [gw1] [ 97%] PASSED app/tests/test_users/test_reset_password.py::test_reset_current_user_password_status_code 
-1717525731922 info [gw0] [100%] PASSED app/tests/test_users/test_reset_password.py::test_reset_current_user_password_is_changed_in_db 
-1717525731922 info 
-1717525731922 info ---------- coverage: platform linux, python 3.12.3-final-0 -----------
-1717525731922 info Name                            Stmts   Miss  Cover   Missing
-1717525731922 info -------------------------------------------------------------
-...
-}
-```
-Shut down devbox
-```commandline
-python -m main --cmd shutdown --res devbox --id dbx_2wkaVyVJmCfKpBJ6XX70F
->
-{
-    "id": "dbx_2wkaVyVJmCfKpBJ6XX70F",
+# Note that the devbox status="shutdown" after the entrypoint completes.
+devbox={
+    "id": "dbx_2xMDUOsKMiZBYKsvSRtMA",
+    "blueprint_id": null,
+    "create_time_ms": 1723229557715,
+    "end_time_ms": 1723229561620,
+    "initiator_id": null,
+    "initiator_type": "invocation",
+    "name": null,
     "status": "shutdown"
 }
 ```
