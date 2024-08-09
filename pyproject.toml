@@ -1,0 +1,32 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "rl_cli"
+authors = [{name = "Runloop AI", email = "eng+cli@runloop.ai"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: MIT License"]
+dynamic = ["version", "description"]
+dependencies = [
+  "requests",
+  "httpx",
+  "runloop-api-client",
+]
+
+[project.optional-dependencies]
+dev = [
+  "flit",
+  "pip-tools",
+  "pytest",
+  "ruff",
+]
+
+[project.scripts]
+rl-cli = "rl_cli.main:main"
+
+[project.urls]
+Home = "https://www.runloop.ai"
+Documentation = "https://docs.runloop.ai"
+Source = "https://github.com/runloopai/rl-cli"
