@@ -25,7 +25,6 @@ flit install --symlink --python </path/to/system/python>
 ```
 # In a new terminal
 export RUNLOOP_API_KEY=<your-api-key>
-export GITHUB_TOKEN=<your-github-token>
 rl --help
 ```
 
