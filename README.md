@@ -1,5 +1,5 @@
 # rl-cli
-Runloop CLI for using runloop APIs
+A command line utility for interacting with runloop APIs.
 
 **NOTE: This project is still in early alpha release**
 
@@ -20,11 +20,13 @@ python3 -m venv .venv && pip install -r dev-requirements.txt
 # Install to your local machine
 # Use 'which python3' to find your system python
 flit install --symlink --python </path/to/system/python>
+```
 
+```
 # In a new terminal
 export RUNLOOP_API_KEY=<your-api-key>
 export GITHUB_TOKEN=<your-github-token>
-rl-cli --help
+rl --help
 ```
 
 # Quick reference
@@ -33,7 +35,7 @@ rl-cli --help
 
 ### Create a devbox and run a single command
 ```commandline
-rl-cli devbox create --env_vars HELLO=world --entrypoint "echo \$HELLO"
+rl devbox create --env_vars HELLO=world --entrypoint "echo \$HELLO"
 >
 create devbox={
     "id": "dbx_2xMDUOsKMiZBYKsvSRtMA",
@@ -49,7 +51,7 @@ create devbox={
 
 ### Observe logs
 ```commandline
-rl-cli devbox logs --id dbx_2xMDUOsKMiZBYKsvSRtMA
+rl devbox logs --id dbx_2xMDUOsKMiZBYKsvSRtMA
 >
 2024-08-09 11:52:38  Initializing devbox...
 2024-08-09 11:52:38  Devbox setup complete
@@ -61,7 +63,7 @@ rl-cli devbox logs --id dbx_2xMDUOsKMiZBYKsvSRtMA
 
 ### Check the devbox status
 ```commandline
-rl-cli devbox get --id dbx_2ws7IOtjxnJgLsBIpU9nn
+rl devbox get --id dbx_2ws7IOtjxnJgLsBIpU9nn
 >   
 # Note that the devbox status="shutdown" after the entrypoint completes.
 devbox={

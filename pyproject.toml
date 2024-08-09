@@ -24,7 +24,7 @@ dev = [
 ]
 
 [project.scripts]
-rl-cli = "rl_cli.main:main"
+rl = "rl_cli.main:main"
 
 [project.urls]
 Home = "https://www.runloop.ai"
