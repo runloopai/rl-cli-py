@@ -35,7 +35,7 @@ rl --help
 
 ### Create a devbox and run a single command
 ```commandline
-rl devbox create --env_vars HELLO=world --entrypoint "echo \$HELLO"
+rl devbox create --env_vars HELLO=world --entrypoint 'echo $HELLO'
 >
 create devbox={
     "id": "dbx_2xMDUOsKMiZBYKsvSRtMA",
@@ -46,19 +46,19 @@ create devbox={
     "initiator_type": "invocation",
     "name": null,
     "status": "provisioning"
-}                                                                                                                              [1.03s]
+}
 ```
 
 ### Observe logs
 ```commandline
 rl devbox logs --id dbx_2xMDUOsKMiZBYKsvSRtMA
 >
-2024-08-09 11:52:38  Initializing devbox...
-2024-08-09 11:52:38  Devbox setup complete
-2024-08-09 11:52:38 -> echo $HELLO
-2024-08-09 11:52:38  world
-2024-08-09 11:52:38  world
-2024-08-09 11:52:38  None
+2024-08-09 12:15:01.701  Initializing devbox...
+2024-08-09 12:15:01.734  Devbox setup complete
+2024-08-09 12:15:01.769 [entrypoint] -> echo $HELLO
+2024-08-09 12:15:01.798 [entrypoint]  world
+2024-08-09 12:15:01.798  world
+2024-08-09 12:15:01.800 [entrypoint] -> exit_code=0
 ```
 
 ### Check the devbox status

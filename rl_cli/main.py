@@ -125,15 +125,20 @@ async def devbox_logs(args) -> None:
     for log in logs.logs or []:
         time_str = (
             datetime.datetime.fromtimestamp(log.timestamp_ms / 1000.0).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
+                "%Y-%m-%d %H:%M:%S.%f"
+            )[:-3]
             if log.timestamp_ms
             else ""
         )
+        source: str = f" [{log.source}]" if log.source else ""
         if log.cmd is not None:
-            print(f"{time_str} -> {log.cmd}")
+            print(f"{time_str}{source} -> {log.cmd}")
+        elif log.message is not None:
+            print(f"{time_str}{source}  {log.message}")
+        elif log.exit_code is not None:
+            print(f"{time_str}{source} -> exit_code={log.exit_code}")
         else:
-            print(f"{time_str}  {log.message}")
+            print(f"{time_str}{source}  {log}")
 
 
 async def blueprint_logs(args) -> None:
