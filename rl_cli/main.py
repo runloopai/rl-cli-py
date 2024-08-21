@@ -6,6 +6,7 @@ import os
 import subprocess
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
+from runloop_api_client.types import blueprint_create_params
 
 from rl_cli.runloop_client import RunloopClient
 
@@ -53,6 +54,19 @@ def _args_to_dict(input_list) -> dict | NotGiven:
     if input_list is None:
         return NOT_GIVEN
     return dict(input_list)
+
+
+async def create_blueprint(args) -> None:
+    launch_parameters = blueprint_create_params.LaunchParameters(
+        resource_size_request=args.resources
+    )
+
+    blueprint = await runloop_api_client().blueprints.create(
+        name=args.name,
+        system_setup_commands=args.system_setup_commands,
+        launch_parameters=launch_parameters,
+    )
+    print(f"created blueprint={blueprint.model_dump_json(indent=4)}")
 
 
 async def create_devbox(args) -> None:
@@ -304,6 +318,28 @@ async def run():
     blueprint_parser = subparsers.add_parser("blueprint", help="Manage blueprints")
     blueprint_subparsers = blueprint_parser.add_subparsers(dest="subcommand")
 
+    blueprint_create_parser = blueprint_subparsers.add_parser(
+        "create", help="Create a blueprint"
+    )
+    blueprint_create_parser.set_defaults(
+        func=lambda args: asyncio.create_task(create_blueprint(args))
+    )
+    blueprint_create_parser.add_argument(
+        "--name",
+        help="Blueprint name. ",
+        required=True
+    )
+    blueprint_create_parser.add_argument(
+        "--system_setup_commands",
+        help="Blueprint system initialization commands. "
+        '(--system_setup_commands "sudo apt install pipx")',
+        action="append",
+    )
+    blueprint_create_parser.add_argument(
+        "--resources", type=str, help="Devbox resource specification.",
+        choices=["SMALL", "MEDIUM", "   LARGE"]
+    )
+
     blueprint_list_parser = blueprint_subparsers.add_parser(
         "list", help="List blueprints"
     )
@@ -317,6 +353,14 @@ async def run():
     blueprint_get_parser.add_argument("--id", required=True, help="ID of the blueprint")
     blueprint_get_parser.set_defaults(
         func=lambda args: asyncio.create_task(get_blueprint(args))
+    )
+
+    blueprint_get_parser = blueprint_subparsers.add_parser(
+        "logs", help="Get blueprint build logs"
+    )
+    blueprint_get_parser.add_argument("--id", required=True, help="ID of the blueprint")
+    blueprint_get_parser.set_defaults(
+        func=lambda args: asyncio.create_task(blueprint_logs(args))
     )
 
     parser.add_argument("--repo", type=str, help="Repo name.")
