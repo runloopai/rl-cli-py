@@ -15,7 +15,7 @@ git clone https://github.com/runloopai/rl-cli.git
 cd rl-cli/
 
 # Setup the venv and dev tools
-python3 -m venv .venv && pip install -r dev-requirements.txt
+python3 -m venv .venv && source .venv/bin/activate && pip install -r dev-requirements.txt
 
 # Install to your local machine
 # Use 'which python3' to find your system python
