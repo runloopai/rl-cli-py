@@ -63,10 +63,20 @@ async def create_blueprint(args) -> None:
 
     blueprint = await runloop_api_client().blueprints.create(
         name=args.name,
+        dockerfile=args.dockerfile,
         system_setup_commands=args.system_setup_commands,
         launch_parameters=launch_parameters,
     )
     print(f"created blueprint={blueprint.model_dump_json(indent=4)}")
+
+
+async def preview(args) -> None:
+    blueprint = await runloop_api_client().blueprints.preview(
+        name=args.name,
+        system_setup_commands=args.system_setup_commands,
+        dockerfile=args.dockerfile,
+    )
+    print(f"preview blueprint={blueprint.model_dump_json(indent=4)}")
 
 
 async def create_devbox(args) -> None:
@@ -102,7 +112,7 @@ async def list_functions(args) -> None:
 
 
 async def list_blueprints(args) -> None:
-    blueprints = await runloop_api_client().blueprints.list()
+    blueprints = await runloop_api_client().blueprints.list(name=args.name)
     [
         print(f"blueprints={blueprint.model_dump_json(indent=4)}")
         for blueprint in blueprints.blueprints or []
@@ -336,13 +346,43 @@ async def run():
         action="append",
     )
     blueprint_create_parser.add_argument(
+        "--dockerfile",
+        help="Blueprint fully enumerated dockerfile.",
+        type=str
+    )
+    blueprint_create_parser.add_argument(
         "--resources", type=str, help="Devbox resource specification.",
         choices=["SMALL", "MEDIUM", "   LARGE"]
+    )
+
+    blueprint_preview_parser = blueprint_subparsers.add_parser(
+        "preview", help="Create a blueprint"
+    )
+    blueprint_preview_parser.set_defaults(
+        func=lambda args: asyncio.create_task(preview(args))
+    )
+    blueprint_preview_parser.add_argument(
+        "--name",
+        help="Blueprint name. ",
+        required=True
+    )
+    blueprint_preview_parser.add_argument(
+        "--dockerfile",
+        help="Blueprint fully enumerated dockerfile.",
+        type=str
+    )
+
+    blueprint_preview_parser.add_argument(
+        "--system_setup_commands",
+        help="Blueprint system initialization commands. "
+        '(--system_setup_commands "sudo apt install pipx")',
+        action="append",
     )
 
     blueprint_list_parser = blueprint_subparsers.add_parser(
         "list", help="List blueprints"
     )
+    blueprint_list_parser.add_argument("--name", help="Blueprint name.", type=str, required=False)
     blueprint_list_parser.set_defaults(
         func=lambda args: asyncio.create_task(list_blueprints(args))
     )
@@ -354,12 +394,11 @@ async def run():
     blueprint_get_parser.set_defaults(
         func=lambda args: asyncio.create_task(get_blueprint(args))
     )
-
-    blueprint_get_parser = blueprint_subparsers.add_parser(
+    blueprint_logs_parser = blueprint_subparsers.add_parser(
         "logs", help="Get blueprint build logs"
     )
-    blueprint_get_parser.add_argument("--id", required=True, help="ID of the blueprint")
-    blueprint_get_parser.set_defaults(
+    blueprint_logs_parser.add_argument("--id", required=True, help="ID of the blueprint")
+    blueprint_logs_parser.set_defaults(
         func=lambda args: asyncio.create_task(blueprint_logs(args))
     )
 
