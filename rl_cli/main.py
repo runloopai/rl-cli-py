@@ -169,6 +169,14 @@ async def devbox_exec(args) -> None:
     print("exec_result=", result)
 
 
+async def devbox_exec_async(args) -> None:
+    assert args.id is not None
+    result = await runloop_api_client().devboxes.execute_sync(
+        id=args.id, command=args.exec_command
+    )
+    print("exec_result=", result)
+
+
 async def devbox_ssh(args) -> None:
     assert args.id is not None
     # Get the private key + url
