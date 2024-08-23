@@ -182,6 +182,7 @@ async def devbox_ssh(args) -> None:
     # Get the private key + url
     # TODO: Move ssh to the client
     result = await runloop_client().devbox_create_ssh_key(args.id)
+    await runloop_api_client().devboxes.create()
     key: str = result["ssh_private_key"]
     url: str = result["url"]
     # Write the key to ~/.runloop/ssh_keys/<id>.pem
