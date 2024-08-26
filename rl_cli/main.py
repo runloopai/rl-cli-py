@@ -8,8 +8,6 @@ import subprocess
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
 from runloop_api_client.types import blueprint_create_params
 
-from rl_cli.runloop_client import RunloopClient
-
 
 def base_url() -> str:
     env: str | None = os.getenv("RUNLOOP_ENV")
@@ -26,15 +24,6 @@ def ssh_url() -> str:
         return "ssh.runloop.pro:443"
     else:
         return "ssh.runloop.ai:443"
-
-
-@functools.cache
-def runloop_client():
-    api_key: str | None = os.getenv("RUNLOOP_API_KEY")
-    if not api_key:
-        raise ValueError("RUNLOOP_API_KEY must be set in the environment.")
-
-    return RunloopClient(api_key=api_key, base_url=base_url())
 
 
 @functools.cache
@@ -179,13 +168,24 @@ async def devbox_exec(args) -> None:
     print("exec_result=", result)
 
 
+async def devbox_exec_async(args) -> None:
+    assert args.id is not None
+    result = await runloop_api_client().devboxes.execute_sync(
+        id=args.id, command=args.exec_command
+    )
+    print("exec_result=", result)
+
+
 async def devbox_ssh(args) -> None:
     assert args.id is not None
     # Get the private key + url
     # TODO: Move ssh to the client
-    result = await runloop_client().devbox_create_ssh_key(args.id)
-    key: str = result["ssh_private_key"]
-    url: str = result["url"]
+    result = await runloop_api_client().devboxes.create_ssh_key(args.id)
+    if not result:
+        print("Failed to create ssh key")
+        return
+    key: str = result.ssh_private_key or ""
+    url: str = result.url or ""
     # Write the key to ~/.runloop/ssh_keys/<id>.pem
     os.makedirs(os.path.expanduser("~/.runloop/ssh_keys"), exist_ok=True)
     keyfile_path = os.path.expanduser(f"~/.runloop/ssh_keys/{args.id}.pem")
