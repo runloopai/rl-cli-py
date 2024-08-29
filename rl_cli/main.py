@@ -42,7 +42,7 @@ def runloop_api_client() -> AsyncRunloop:
     if not os.getenv("RUNLOOP_API_KEY"):
         raise ValueError("RUNLOOP_API_KEY must be set in the environment.")
 
-    return AsyncRunloop(bearer_token=os.getenv("RUNLOOP_API_KEY"), base_url=base_url(), timeout=600)
+    return AsyncRunloop(bearer_token=os.getenv("RUNLOOP_API_KEY"), base_url=base_url())
 
 
 def _parse_env_arg(arg):
