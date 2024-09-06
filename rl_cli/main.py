@@ -46,13 +46,18 @@ def _args_to_dict(input_list) -> dict | NotGiven:
 
 
 async def create_blueprint(args) -> None:
+    dockerfile_contents = args.dockerfile
+    if args.dockerfile_path:
+        with open(args.dockerfile_path) as f:
+            dockerfile_contents = f.read()
+
     launch_parameters = blueprint_create_params.LaunchParameters(
         resource_size_request=args.resources
     )
 
     blueprint = await runloop_api_client().blueprints.create(
         name=args.name,
-        dockerfile=args.dockerfile,
+        dockerfile=dockerfile_contents,
         system_setup_commands=args.system_setup_commands,
         launch_parameters=launch_parameters,
     )
@@ -126,6 +131,20 @@ async def get_blueprint(args) -> None:
     print(f"blueprint={blueprint.model_dump_json(indent=4)}")
 
 
+async def execute_async(args) -> None:
+    assert args.id is not None
+    assert args.command is not None
+    devbox = await runloop_api_client().devboxes.execute_async(id=args.id, command=args.command)
+    print(f"execution={devbox.model_dump_json(indent=4)}")
+
+
+async def get_async_exec(args) -> None:
+    assert args.id is not None
+    assert args.execution_id is not None
+    devbox = await runloop_api_client().devboxes.executions.retrieve(execution_id=args.execution_id, id=args.id)
+    print(f"execution={devbox.model_dump_json(indent=4)}")
+
+
 async def shutdown_devbox(args) -> None:
     assert args.id is not None
     devbox = await runloop_api_client().devboxes.shutdown(args.id)
@@ -163,7 +182,7 @@ async def blueprint_logs(args) -> None:
 async def devbox_exec(args) -> None:
     assert args.id is not None
     result = await runloop_api_client().devboxes.execute_sync(
-        id=args.id, command=args.exec_command
+        id=args.id, command=args.command
     )
     print("exec_result=", result)
 
@@ -278,7 +297,7 @@ async def run():
     )
     devbox_exec_parser.add_argument("--id", required=True, help="ID of the devbox")
     devbox_exec_parser.add_argument(
-        "--exec_command", required=True, help="Command to execute"
+        "--command", required=True, help="Command to execute"
     )
     devbox_exec_parser.set_defaults(
         func=lambda args: asyncio.create_task(devbox_exec(args))
@@ -308,6 +327,28 @@ async def run():
     devbox_shutdown_parser.add_argument("--id", required=True, help="ID of the devbox")
     devbox_shutdown_parser.set_defaults(
         func=lambda args: asyncio.create_task(shutdown_devbox(args))
+    )
+
+    devbox_async_execution_parser = devbox_subparsers.add_parser(
+        "exec_async", help="Initiate an asynchronous Devbox execution."
+    )
+    devbox_async_execution_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_async_execution_parser.add_argument(
+        "--command", required=True, help="Command to execute"
+    )
+    devbox_async_execution_parser.set_defaults(
+        func=lambda args: asyncio.create_task(execute_async(args))
+    )
+
+    devbox_async_execution_retrieve_parser = devbox_subparsers.add_parser(
+        "get_async", help="Get an asynchronous Devbox execution."
+    )
+    devbox_async_execution_retrieve_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_async_execution_retrieve_parser.add_argument(
+        "--execution_id", required=True
+    )
+    devbox_async_execution_retrieve_parser.set_defaults(
+        func=lambda args: asyncio.create_task(get_async_exec(args))
     )
 
     # invocation subcommands
@@ -347,7 +388,12 @@ async def run():
     )
     blueprint_create_parser.add_argument(
         "--dockerfile",
-        help="Blueprint fully enumerated dockerfile.",
+        help="Text string of fully enumerated dockerfile.",
+        type=str
+    )
+    blueprint_create_parser.add_argument(
+        "--dockerfile_path",
+        help="Path to a dockerfile to use.",
         type=str
     )
     blueprint_create_parser.add_argument(
