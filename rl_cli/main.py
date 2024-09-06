@@ -2,11 +2,12 @@ import argparse
 import asyncio
 import datetime
 import functools
+import json
 import os
 import subprocess
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
-from runloop_api_client.types import blueprint_create_params
+from runloop_api_client.types import blueprint_create_params, CodeMountParametersParam
 
 
 def base_url() -> str:
@@ -39,10 +40,10 @@ def _parse_env_arg(arg):
     return key, value
 
 
-def _parse_code_mount(arg):
-    return CodeMountParameters(
-        **arg
-    )
+def _parse_code_mounts(arg) -> CodeMountParametersParam | None:
+    if arg is None:
+        return None
+    return CodeMountParametersParam(**json.loads(arg))
 
 
 def _args_to_dict(input_list) -> dict | NotGiven:
@@ -85,6 +86,7 @@ async def create_devbox(args) -> None:
         environment_variables=_args_to_dict(args.env_vars),
         setup_commands=args.setup_commands,
         blueprint_id=args.blueprint_id,
+        code_mounts=args.code_mounts,
     )
     print(f"create devbox={devbox.model_dump_json(indent=4)}")
 
@@ -282,8 +284,8 @@ async def run():
     )
     devbox_create_parser.add_argument(
         "--code_mounts",
-        help="Environment key-value variables. (--env_vars key1=value1 --env_vars key2=value2)",
-        type=_parse_env_arg,
+        help="Code mount dictionary. (--code_mounts {\"repo_name\": \"my_repo\", \"repo_owner\": \"my_owner\"})",
+        type=_parse_code_mounts,
         action="append",
     )
 
