@@ -39,6 +39,12 @@ def _parse_env_arg(arg):
     return key, value
 
 
+def _parse_code_mount(arg):
+    return CodeMountParameters(
+        **arg
+    )
+
+
 def _args_to_dict(input_list) -> dict | NotGiven:
     if input_list is None:
         return NOT_GIVEN
@@ -270,6 +276,12 @@ async def run():
     )
     devbox_create_parser.add_argument(
         "--env_vars",
+        help="Environment key-value variables. (--env_vars key1=value1 --env_vars key2=value2)",
+        type=_parse_env_arg,
+        action="append",
+    )
+    devbox_create_parser.add_argument(
+        "--code_mounts",
         help="Environment key-value variables. (--env_vars key1=value1 --env_vars key2=value2)",
         type=_parse_env_arg,
         action="append",
