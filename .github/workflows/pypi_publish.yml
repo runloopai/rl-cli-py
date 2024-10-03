@@ -20,7 +20,6 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cd python/runloop
         pip install -U setuptools wheel twine
         
     - name: Publish to PyPi
@@ -28,6 +27,5 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
       run: |
-        cd python/runloop
         python setup.py sdist
         twine upload dist/*
