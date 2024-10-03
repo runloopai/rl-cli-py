@@ -1,0 +1,33 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.1.1
+
+    - name: Set up Python
+      uses: actions/setup-python@v5.0.0
+      with:
+        python-version: '3.10.x'
+
+    - name: Install dependencies
+      run: |
+        cd python/runloop
+        pip install -U setuptools wheel twine
+        
+    - name: Publish to PyPi
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+      run: |
+        cd python/runloop
+        python setup.py sdist
+        twine upload dist/*
