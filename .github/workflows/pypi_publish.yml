@@ -23,10 +23,11 @@ jobs:
     
     - name: Set version
       run: |
-        # Extract version from GitHub release tag
-        VERSION=${GITHUB_REF#refs/tags/v}
-        # Update __init__.py with the new version
+        # Extract version from GitHub release tag, removing 'refs/tags/' and any 'v' prefix using awk
+        VERSION=$(echo $GITHUB_REF | awk -F'/' '{print $NF}' | awk '{sub(/^v/, "", $0); print}')
+        # Update __init__.py with the new version using awk
         awk -v version="$VERSION" '/__version__/{$0 = "__version__ = \"" version "\""} 1' rl_cli/__init__.py > temp && mv temp rl_cli/__init__.py
+        # Display the new version for verification
         echo "Updated version to $VERSION"
         cat rl_cli/__init__.py
     
