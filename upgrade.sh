@@ -3,12 +3,12 @@
 set -e  # Exit immediately if a command exits with a non-zero status.
 
 # Create a virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-    python3 -m venv venv
+if [ ! -d ".venv" ]; then
+    python3 -m venv .venv
 fi
 
 # Activate the virtual environment
-source venv/bin/activate
+source .venv/bin/activate
 
 # Ensure pip and pip-tools are up to date
 pip install --upgrade pip pip-tools
