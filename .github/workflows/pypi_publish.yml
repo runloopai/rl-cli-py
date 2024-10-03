@@ -3,6 +3,7 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
+  workflow_dispatch:  # This allows manual triggering
 
 jobs:
   build-and-publish:
@@ -25,8 +26,7 @@ jobs:
         # Extract version from GitHub release tag
         VERSION=${GITHUB_REF#refs/tags/v}
         # Update __init__.py with the new version
-        sed -i "s/__version__ = .*/__version__ = \"$VERSION\"/" rl_cli/__init__.py
-        # Display the new version for verification
+        awk -v version="$VERSION" '/__version__/{$0 = "__version__ = \"" version "\""} 1' rl_cli/__init__.py > temp && mv temp rl_cli/__init__.py
         echo "Updated version to $VERSION"
         cat rl_cli/__init__.py
     
