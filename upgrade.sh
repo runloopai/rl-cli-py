@@ -8,7 +8,7 @@ if [ ! -d ".venv" ]; then
 fi
 
 # Activate the virtual environment
-source .venv/bin/activate
+source "$(dirname "$0")/.venv/bin/activate"
 
 # Ensure pip and pip-tools are up to date
 pip install --upgrade pip pip-tools
