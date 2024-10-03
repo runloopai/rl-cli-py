@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import re
+import toml
 
 def run_command(command, cwd=None):
     try:
@@ -28,6 +29,15 @@ def check_git_status(repo_path):
         print(f"Error: Git repository at {repo_path} has uncommitted changes.")
         sys.exit(1)
 
+def get_version():
+    try:
+        with open('pyproject.toml', 'r') as f:
+            pyproject = toml.load(f)
+        return pyproject['project']['version']
+    except Exception as e:
+        print(f"Error reading version from pyproject.toml: {e}")
+        sys.exit(1)
+
 def update_homebrew_formula():
     package_name = "rl-cli"
     homebrew_formula_path = f"../homebrew-tap/Formula/{package_name}.rb"
@@ -47,7 +57,7 @@ def update_homebrew_formula():
         formula_content = formula_content.replace("def install", f"include RlCliResources\n\n  def install")
 
     # Update version and URL
-    version = run_command(["python", "setup.py", "--version"])
+    version = get_version()
     url = f"https://github.com/runloopai/rl-cli/archive/v{version}.tar.gz"
     formula_content = re.sub(r'url ".*"', f'url "{url}"', formula_content)
     
