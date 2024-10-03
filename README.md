@@ -5,7 +5,13 @@ A command line utility for interacting with runloop APIs.
 
 # Setup
 
-(Homebrew instructions coming soon...)
+## Install using pipx
+
+```
+➜  ~  pipx install rl-cli
+  installed package rl-cli 0.0.1, installed using Python 3.12.6
+  These apps are now globally available
+```
 
 ## For developers
 ```commandline
@@ -17,9 +23,12 @@ cd rl-cli/
 # Setup the venv and dev tools
 python3 -m venv .venv && source .venv/bin/activate && pip install -r dev-requirements.txt
 
-# Install to your local machine
+# Install to your venv with flink
 # Use 'which python3' to find your system python
 flit install --symlink --python </path/to/system/python>
+
+# Install to your venv using pip
+pip install rl-cli
 ```
 
 ```
