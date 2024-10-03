@@ -34,7 +34,9 @@ def update_homebrew_formula():
     resources_path = f"../homebrew-tap/Formula/{package_name}_resources.rb"
 
     # Generate resources file
-    run_command(f"poet -r {package_name} > {resources_path}")
+    resources_content = run_command(["poet", "-r", package_name])
+    with open(resources_path, 'w') as f:
+        f.write(resources_content)
 
     # Update main formula file to import resources
     with open(homebrew_formula_path, 'r') as f:
@@ -50,7 +52,7 @@ def update_homebrew_formula():
     formula_content = re.sub(r'url ".*"', f'url "{url}"', formula_content)
     
     # Calculate new SHA256
-    sha256 = run_command(["curl", "-L", url, "|", "shasum", "-a", "256"])
+    sha256 = run_command(["curl", "-L", url, "|", "shasum", "-a", "256"]).split()[0]
     formula_content = re.sub(r'sha256 ".*"', f'sha256 "{sha256}"', formula_content)
 
     with open(homebrew_formula_path, 'w') as f:
