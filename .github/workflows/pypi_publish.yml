@@ -2,21 +2,34 @@ name: Publish to PyPI
 
 on:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4.1.1
+    
     - name: Set up Python
       uses: actions/setup-python@v5.0.0
       with:
         python-version: '3.12'
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install flit
+    
+    - name: Set version
+      run: |
+        # Extract version from GitHub release tag
+        VERSION=${GITHUB_REF#refs/tags/v}
+        # Update __init__.py with the new version
+        sed -i "s/__version__ = .*/__version__ = \"$VERSION\"/" rl_cli/__init__.py
+        # Display the new version for verification
+        echo "Updated version to $VERSION"
+        cat rl_cli/__init__.py
+    
     - name: Build and publish
       env:
         FLIT_USERNAME: __token__
