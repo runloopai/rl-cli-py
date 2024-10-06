@@ -224,7 +224,8 @@ async def get_devbox_ssh_key(devbox_id: str) -> tuple[str, str, str] | None:
 
 
 async def devbox_ssh(args) -> None:
-    assert args.id is not None
+    if args.id is None:
+        raise ValueError("The 'id' argument is required and was not provided.")
     
     ssh_info = await get_devbox_ssh_key(args.id)
     if not ssh_info:
