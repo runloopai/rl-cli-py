@@ -283,11 +283,14 @@ async def devbox_scp(args) -> None:
         scp_command.extend(shlex.split(args.scp_options))
 
     if args.src.startswith(':'):
-        scp_command.append(f"user@{url}:{args.src[1:]}")
+        scp_command.append(f"user@{url}:{args.src[1:]}")  # Remove the leading ':'
         scp_command.append(args.dst)
     else:
         scp_command.append(args.src)
-        scp_command.append(f"user@{url}:{args.dst}")
+        if args.dst.startswith(':'):
+            scp_command.append(f"user@{url}:{args.dst[1:]}")  # Remove the leading ':'
+        else:
+            scp_command.append(args.dst)
 
     try:
         subprocess.run(scp_command, check=True)
