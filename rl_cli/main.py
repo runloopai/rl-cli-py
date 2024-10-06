@@ -216,8 +216,10 @@ async def get_devbox_ssh_key(devbox_id: str) -> tuple[str, str, str] | None:
     
     os.makedirs(os.path.expanduser("~/.runloop/ssh_keys"), exist_ok=True)
     keyfile_path = os.path.expanduser(f"~/.runloop/ssh_keys/{devbox_id}.pem")
-    with open(keyfile_path, "w") as f:
+    with open(keyfile_path, "w", encoding='utf-8') as f:
         f.write(key)
+        f.flush()
+        os.fsync(f.fileno())
     os.chmod(keyfile_path, 0o600)
     
     return keyfile_path, key, url
