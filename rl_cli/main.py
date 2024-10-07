@@ -7,6 +7,7 @@ import os
 import subprocess
 import shlex
 import sys
+import signal
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
 from runloop_api_client.types import blueprint_create_params, CodeMountParametersParam
@@ -341,6 +342,47 @@ async def devbox_rsync(args) -> None:
         print(f"Rsync command failed with exit code {e.returncode}")
         sys.exit(e.returncode)
 
+async def devbox_tunnel(args) -> None:
+    if args.id is None:
+        raise ValueError("The 'id' argument is required and was not provided.")
+    
+    if ':' not in args.ports:
+        raise ValueError("Ports must be specified as 'local:remote'")
+    
+    local_port, remote_port = args.ports.split(':')
+    
+    ssh_info = await get_devbox_ssh_key(args.id)
+    if not ssh_info:
+        return
+    
+    keyfile_path, _, url = ssh_info
+
+    proxy_command = f"openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2> /dev/null"
+    command = [
+        "/usr/bin/ssh",
+        "-i", keyfile_path,
+        "-o", f"ProxyCommand={proxy_command}",
+        "-o", "StrictHostKeyChecking=no",
+        "-N",  # Do not execute a remote command
+        "-L", f"{local_port}:localhost:{remote_port}",
+        f"user@{url}",
+    ]
+
+    print(f"Starting tunnel: local port {local_port} -> remote port {remote_port}")
+    print("Press Ctrl+C to stop the tunnel.")
+
+    def signal_handler(sig, frame):
+        print("\nStopping tunnel...")
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    try:
+        subprocess.run(command)
+    except subprocess.CalledProcessError as e:
+        print(f"Tunnel creation failed with exit code {e.returncode}")
+        sys.exit(e.returncode)
+
 async def run():
     if os.getenv("RUNLOOP_API_KEY") is None:
         raise ValueError("Runloop API key not found in environment variables.")
@@ -476,6 +518,14 @@ async def run():
     devbox_rsync_parser.add_argument("--rsync-options", help="Additional rsync options")
     devbox_rsync_parser.set_defaults(
         func=lambda args: asyncio.create_task(devbox_rsync(args))
+    )
+
+    # Add the new tunnel subcommand to the devbox subparser
+    devbox_tunnel_parser = devbox_subparsers.add_parser("tunnel", help="Create an SSH tunnel to a devbox")
+    devbox_tunnel_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_tunnel_parser.add_argument("ports", help="Port specification in the format 'local:remote'")
+    devbox_tunnel_parser.set_defaults(
+        func=lambda args: asyncio.create_task(devbox_tunnel(args))
     )
 
     # invocation subcommands
