@@ -111,8 +111,8 @@ To use the rsync command:
 
 ### Use port forwarding to create a tunnel to remote devbox
 ```commandline
-To use the rsync command:
-   rl devbox devbox tunnel --id <devbox_id> <local_port>:<remote_port>
+To use the tunnel command:
+   rl devbox tunnel --id <devbox_id> <local_port>:<remote_port>
 
 Note that this is a blocking command that will block for duration of tunnel.
 ```
