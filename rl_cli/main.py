@@ -318,6 +318,7 @@ async def devbox_rsync(args) -> None:
 
     rsync_command = [
         "rsync",
+        "-vrz",  # v: verbose, r: recursive, z: compress
         "-e", f"ssh {ssh_options}",
     ]
 
