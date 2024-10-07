@@ -301,6 +301,44 @@ async def devbox_scp(args) -> None:
         print(f"SCP command failed with exit code {e.returncode}")
         sys.exit(e.returncode)
 
+async def devbox_rsync(args) -> None:
+    assert args.id is not None
+    assert args.src is not None
+    assert args.dst is not None
+
+    ssh_info = await get_devbox_ssh_key(args.id)
+    if not ssh_info:
+        return
+    
+    keyfile_path, _, url = ssh_info
+
+    proxy_command = f"openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2> /dev/null"
+    
+    ssh_options = f"-i {keyfile_path} -o ProxyCommand='{proxy_command}' -o StrictHostKeyChecking=no"
+
+    rsync_command = [
+        "rsync",
+        "-e", f"ssh {ssh_options}",
+    ]
+
+    if args.rsync_options:
+        rsync_command.extend(shlex.split(args.rsync_options))
+
+    if args.src.startswith(':'):
+        rsync_command.append(f"user@{url}:{args.src[1:]}")  # Remove the leading ':'
+        rsync_command.append(args.dst)
+    else:
+        rsync_command.append(args.src)
+        if args.dst.startswith(':'):
+            rsync_command.append(f"user@{url}:{args.dst[1:]}")  # Remove the leading ':'
+        else:
+            rsync_command.append(args.dst)
+
+    try:
+        subprocess.run(rsync_command, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Rsync command failed with exit code {e.returncode}")
+        sys.exit(e.returncode)
 
 async def run():
     if os.getenv("RUNLOOP_API_KEY") is None:
@@ -428,6 +466,15 @@ async def run():
     devbox_scp_parser.add_argument("--scp-options", help="Additional SCP options")
     devbox_scp_parser.set_defaults(
         func=lambda args: asyncio.create_task(devbox_scp(args))
+    )
+
+    devbox_rsync_parser = devbox_subparsers.add_parser("rsync", help="Rsync files to/from a devbox")
+    devbox_rsync_parser.add_argument("src", help="Source file or directory")
+    devbox_rsync_parser.add_argument("dst", help="Destination file or directory")
+    devbox_rsync_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_rsync_parser.add_argument("--rsync-options", help="Additional rsync options")
+    devbox_rsync_parser.set_defaults(
+        func=lambda args: asyncio.create_task(devbox_rsync(args))
     )
 
     # invocation subcommands
