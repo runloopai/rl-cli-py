@@ -5,6 +5,8 @@ import functools
 import json
 import os
 import subprocess
+import shlex
+import sys
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
 from runloop_api_client.types import blueprint_create_params, CodeMountParametersParam
@@ -203,22 +205,35 @@ async def devbox_exec_async(args) -> None:
     print("exec_result=", result)
 
 
-async def devbox_ssh(args) -> None:
-    assert args.id is not None
-    # Get the private key + url
-    # TODO: Move ssh to the client
-    result = await runloop_api_client().devboxes.create_ssh_key(args.id)
+async def get_devbox_ssh_key(devbox_id: str) -> tuple[str, str, str] | None:
+    result = await runloop_api_client().devboxes.create_ssh_key(devbox_id)
     if not result:
         print("Failed to create ssh key")
-        return
+        return None
+    
     key: str = result.ssh_private_key or ""
     url: str = result.url or ""
-    # Write the key to ~/.runloop/ssh_keys/<id>.pem
+    
     os.makedirs(os.path.expanduser("~/.runloop/ssh_keys"), exist_ok=True)
-    keyfile_path = os.path.expanduser(f"~/.runloop/ssh_keys/{args.id}.pem")
-    with open(keyfile_path, "w") as f:
+    keyfile_path = os.path.expanduser(f"~/.runloop/ssh_keys/{devbox_id}.pem")
+    with open(keyfile_path, "w", encoding='utf-8') as f:
         f.write(key)
+        f.flush()
+        os.fsync(f.fileno())
     os.chmod(keyfile_path, 0o600)
+    
+    return keyfile_path, key, url
+
+
+async def devbox_ssh(args) -> None:
+    if args.id is None:
+        raise ValueError("The 'id' argument is required and was not provided.")
+    
+    ssh_info = await get_devbox_ssh_key(args.id)
+    if not ssh_info:
+        return
+    
+    keyfile_path, _, url = ssh_info
 
     if args.config_only:
         print(
@@ -232,6 +247,7 @@ Host {args.id}
             """
         )
         return
+    
     proxy_command = f"openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2> /dev/null"
     command = [
         "/usr/bin/ssh",
@@ -244,6 +260,46 @@ Host {args.id}
         f"user@{url}",
     ]
     subprocess.run(command)
+
+
+async def devbox_scp(args) -> None:
+    assert args.id is not None
+    assert args.src is not None
+    assert args.dst is not None
+
+    ssh_info = await get_devbox_ssh_key(args.id)
+    if not ssh_info:
+        return
+    
+    keyfile_path, _, url = ssh_info
+
+    proxy_command = f"openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2> /dev/null"
+    
+    scp_command = [
+        "scp",
+        "-i", keyfile_path,
+        "-o", f"ProxyCommand={proxy_command}",
+        "-o", "StrictHostKeyChecking=no",
+    ]
+
+    if args.scp_options:
+        scp_command.extend(shlex.split(args.scp_options))
+
+    if args.src.startswith(':'):
+        scp_command.append(f"user@{url}:{args.src[1:]}")  # Remove the leading ':'
+        scp_command.append(args.dst)
+    else:
+        scp_command.append(args.src)
+        if args.dst.startswith(':'):
+            scp_command.append(f"user@{url}:{args.dst[1:]}")  # Remove the leading ':'
+        else:
+            scp_command.append(args.dst)
+
+    try:
+        subprocess.run(scp_command, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"SCP command failed with exit code {e.returncode}")
+        sys.exit(e.returncode)
 
 
 async def run():
@@ -363,6 +419,15 @@ async def run():
     )
     devbox_async_execution_retrieve_parser.set_defaults(
         func=lambda args: asyncio.create_task(get_async_exec(args))
+    )
+
+    devbox_scp_parser = devbox_subparsers.add_parser("scp", help="SCP files to/from a devbox")
+    devbox_scp_parser.add_argument("src", help="Source file or directory")
+    devbox_scp_parser.add_argument("dst", help="Destination file or directory")
+    devbox_scp_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_scp_parser.add_argument("--scp-options", help="Additional SCP options")
+    devbox_scp_parser.set_defaults(
+        func=lambda args: asyncio.create_task(devbox_scp(args))
     )
 
     # invocation subcommands
