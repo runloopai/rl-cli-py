@@ -108,3 +108,11 @@ Note that the rsync implementation will recurse by default and copy directory co
 To use the rsync command:
    rl devbox rsync local_dir :remote_dir --id <devbox_id>
 ```
+
+### Use port forwarding to create a tunnel to remote devbox
+```commandline
+To use the rsync command:
+   rl devbox devbox tunnel --id <devbox_id> <local_port>:<remote_port>
+
+Note that this is a blocking command that will block for duration of tunnel.
+```
