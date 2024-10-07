@@ -85,3 +85,26 @@ devbox={
     "status": "shutdown"
 }
 ```
+
+### Use scp to copy files to/from the devbox
+```commandline
+To use the SCP command:
+   rl devbox scp local_file.txt :remote_file.txt --id <devbox_id>
+
+To copy a file from the devbox to your local machine:
+   rl devbox scp :remote_file.txt local_file.txt --id <devbox_id>
+```
+
+### Use rsync to copy files to/from the devbox
+```commandline
+To use the rsync command:
+   rl devbox rsync local_file.txt :remote_file.txt --id <devbox_id>
+
+To copy a file from the devbox to your local machine:
+   rl devbox rsync :remote_file.txt local_file.txt --id <devbox_id>
+
+Note that the rsync implementation will recurse by default and copy directory contents.
+
+To use the rsync command:
+   rl devbox rsync local_dir :remote_dir --id <devbox_id>
+```
