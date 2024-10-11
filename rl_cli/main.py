@@ -163,7 +163,7 @@ async def get_async_exec(args) -> None:
 
 async def snapshot_devbox(args) -> None:
     assert args.id is not None
-    devbox = await runloop_api_client().devboxes.disk_snapshot(args.id)
+    devbox = await runloop_api_client().devboxes.disk_snapshots(args.id)
     print(f"devbox={devbox.model_dump_json(indent=4)}")
 
 
