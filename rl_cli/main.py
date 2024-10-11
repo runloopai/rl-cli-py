@@ -90,7 +90,8 @@ async def create_devbox(args) -> None:
         setup_commands=args.setup_commands,
         blueprint_id=args.blueprint_id,
         code_mounts=args.code_mounts,
-        snapshot_id=args.snapshot_id,
+        # TODO
+        #snapshot_id=args.snapshot_id,
     )
     print(f"create devbox={devbox.model_dump_json(indent=4)}")
 
@@ -163,7 +164,7 @@ async def get_async_exec(args) -> None:
 
 async def snapshot_devbox(args) -> None:
     assert args.id is not None
-    devbox = await runloop_api_client().devboxes.disk_snapshots(args.id)
+    devbox = await runloop_api_client().devboxes.snapshot_disk(args.id)
     print(f"devbox={devbox.model_dump_json(indent=4)}")
 
 
