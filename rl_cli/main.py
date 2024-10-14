@@ -90,8 +90,7 @@ async def create_devbox(args) -> None:
         setup_commands=args.setup_commands,
         blueprint_id=args.blueprint_id,
         code_mounts=args.code_mounts,
-        # TODO
-        #snapshot_id=args.snapshot_id,
+        snapshot_id=args.snapshot_id,
     )
     print(f"create devbox={devbox.model_dump_json(indent=4)}")
 
@@ -164,8 +163,14 @@ async def get_async_exec(args) -> None:
 
 async def snapshot_devbox(args) -> None:
     assert args.id is not None
-    devbox = await runloop_api_client().devboxes.snapshot_disk(args.id)
-    print(f"devbox={devbox.model_dump_json(indent=4)}")
+    snapshot = await runloop_api_client().devboxes.snapshot_disk(args.id)
+    print(f"snapshot={snapshot.model_dump_json(indent=4)}")
+
+
+async def list_snapshots(args) -> None:
+    assert args.id is not None
+    snapshots_list = await runloop_api_client().devboxes.disk_snapshots()
+    print(f"snapshots={snapshots_list.model_dump_json(indent=4)}")
 
 
 async def shutdown_devbox(args) -> None:
@@ -499,11 +504,19 @@ async def run():
     )
 
     devbox_snapshot_parser = devbox_subparsers.add_parser(
-        "snapshot", help="Snapshot a devbox"
+        "snapshot", help="Work with devbox snapshots"
     )
-    devbox_snapshot_parser.add_argument("--id", required=True, help="ID of the devbox")
-    devbox_snapshot_parser.set_defaults(
+    devbox_snapshot_subparsers = devbox_snapshot_parser.add_subparsers(dest="subcommand")
+    
+    devbox_snapshot_create_parser = devbox_snapshot_subparsers.add_parser("create", help="Create a snapshot of a running devbox")
+    devbox_snapshot_create_parser.add_argument("--devbox_id", required=True, help="ID of the devbox to snapshot")
+    devbox_snapshot_create_parser.set_defaults(
         func=lambda args: asyncio.create_task(snapshot_devbox(args))
+    )
+
+    devbox_snapshot_list_parser = devbox_snapshot_subparsers.add_parser("list", help="List devbox snapshots")
+    devbox_snapshot_list_parser.set_defaults(
+        func=lambda args: asyncio.create_task(list_snapshots(args))
     )
 
     devbox_shutdown_parser = devbox_subparsers.add_parser(
