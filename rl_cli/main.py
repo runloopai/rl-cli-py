@@ -178,6 +178,12 @@ async def suspend_devbox(args) -> None:
     print(f"devbox={devbox.model_dump_json(indent=4)}")
 
 
+async def resume_devbox(args) -> None:
+    assert args.id is not None
+    devbox = await runloop_api_client().devboxes.resume(args.id)
+    print(f"devbox={devbox.model_dump_json(indent=4)}")
+
+
 async def shutdown_devbox(args) -> None:
     assert args.id is not None
     devbox = await runloop_api_client().devboxes.shutdown(args.id)
