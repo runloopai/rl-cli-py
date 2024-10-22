@@ -172,6 +172,18 @@ async def list_snapshots(args) -> None:
     print(f"snapshots={snapshots_list.model_dump_json(indent=4)}")
 
 
+async def suspend_devbox(args) -> None:
+    assert args.id is not None
+    devbox = await runloop_api_client().devboxes.suspend(args.id)
+    print(f"devbox={devbox.model_dump_json(indent=4)}")
+
+
+async def resume_devbox(args) -> None:
+    assert args.id is not None
+    devbox = await runloop_api_client().devboxes.resume(args.id)
+    print(f"devbox={devbox.model_dump_json(indent=4)}")
+
+
 async def shutdown_devbox(args) -> None:
     assert args.id is not None
     devbox = await runloop_api_client().devboxes.shutdown(args.id)
@@ -516,6 +528,22 @@ async def run():
     devbox_snapshot_list_parser = devbox_snapshot_subparsers.add_parser("list", help="List devbox snapshots")
     devbox_snapshot_list_parser.set_defaults(
         func=lambda args: asyncio.create_task(list_snapshots(args))
+    )
+
+    devbox_suspend_parser = devbox_subparsers.add_parser(
+        "suspend", help="suspend a running devbox"
+    )
+    devbox_suspend_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_suspend_parser.set_defaults(
+        func=lambda args: asyncio.create_task(suspend_devbox(args))
+    )
+
+    devbox_resume_parser = devbox_subparsers.add_parser(
+        "resume", help="resume a suspended devbox"
+    )
+    devbox_resume_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_resume_parser.set_defaults(
+        func=lambda args: asyncio.create_task(resume_devbox(args))
     )
 
     devbox_shutdown_parser = devbox_subparsers.add_parser(
