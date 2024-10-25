@@ -659,7 +659,7 @@ async def run():
         choices=["SMALL", "MEDIUM", "LARGE"],
     )
     blueprint_create_parser.add_argument(
-        "--available-ports",
+        "--available_ports",
         type=int,
         nargs="+",
         help="List of available ports for the blueprint (e.g., --available-ports 8000 8080 3000)",
