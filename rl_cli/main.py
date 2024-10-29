@@ -32,9 +32,6 @@ def ssh_url() -> str:
 
 @functools.cache
 def runloop_api_client() -> AsyncRunloop:
-    if not os.getenv("RUNLOOP_API_KEY"):
-        raise ValueError("RUNLOOP_API_KEY must be set in the environment.")
-
     return AsyncRunloop(bearer_token=os.getenv("RUNLOOP_API_KEY"), base_url=base_url())
 
 
@@ -384,8 +381,7 @@ async def devbox_tunnel(args) -> None:
         sys.exit(e.returncode)
 
 async def run():
-    if os.getenv("RUNLOOP_API_KEY") is None:
-        raise ValueError("Runloop API key not found in environment variables.")
+    assert os.getenv("RUNLOOP_API_KEY"), "API key not found, RUNLOOP_API_KEY must be set"
 
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
