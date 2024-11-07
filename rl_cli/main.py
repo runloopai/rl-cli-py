@@ -87,6 +87,7 @@ async def create_devbox(args) -> None:
         environment_variables=_args_to_dict(args.env_vars),
         setup_commands=args.setup_commands,
         blueprint_id=args.blueprint_id,
+        blueprint_name=args.blueprint_name,
         code_mounts=args.code_mounts,
         snapshot_id=args.snapshot_id,
     )
@@ -448,6 +449,9 @@ async def run():
     )
     devbox_create_parser.add_argument(
         "--blueprint_id", type=str, help="Blueprint to use, if any."
+    )
+    devbox_create_parser.add_argument(
+        "--blueprint_name", type=str, help="Blueprint to use, if any."
     )
     devbox_create_parser.add_argument(
         "--snapshot_id", type=str, help="Snapshot to use, if any."
