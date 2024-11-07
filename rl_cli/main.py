@@ -477,7 +477,7 @@ async def run():
         "--status",
         type=str,
         help="Devbox status.",
-        choices=["running", "stopped", "shutdown"],
+        choices=["initializing", "running", "suspending", "suspended", "resuming", "failure", "shutdown"],
     )
 
     devbox_get_parser = devbox_subparsers.add_parser("get", help="Get devbox")
@@ -643,7 +643,7 @@ async def run():
     blueprint_create_parser.add_argument(
         "--system_setup_commands",
         help="Blueprint system initialization commands. "
-        '(--system_setup_commands "sudo apt install pipx")',
+        '(--system_setup_commands "sudo apt-get -y install pipx")',
         action="append",
     )
     blueprint_create_parser.add_argument(
@@ -656,7 +656,7 @@ async def run():
         "--resources",
         type=str,
         help="Devbox resource specification.",
-        choices=["SMALL", "MEDIUM", "LARGE"],
+        choices=["SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
     )
     blueprint_create_parser.add_argument(
         "--available_ports",
