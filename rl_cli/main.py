@@ -11,6 +11,7 @@ import signal
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
 from runloop_api_client.types import blueprint_create_params, CodeMountParametersParam
+from runloop_api_client.types.shared_params import AfterIdle, LaunchParameters
 
 
 def base_url() -> str:
@@ -82,6 +83,16 @@ async def preview(args) -> None:
 
 
 async def create_devbox(args) -> None:
+    if (args.idle_time is not None) != (args.idle_action is not None):
+        raise ValueError("If either idle_time or idle_action is set, both must be set")
+        # Create IdleConfigurationParameters if both idle params are set
+    idle_config: runloop_api_client.types.shared.launch_parameters.AfterIdle | None = None
+    if args.idle_time is not None and args.idle_action is not None:
+        idle_config = AfterIdle(
+            idle_time_seconds=args.idle_time,
+            on_idle=args.idle_action
+        )
+
     devbox = await runloop_api_client().devboxes.create(
         entrypoint=args.entrypoint,
         environment_variables=_args_to_dict(args.env_vars),
@@ -90,6 +101,10 @@ async def create_devbox(args) -> None:
         blueprint_name=args.blueprint_name,
         code_mounts=args.code_mounts,
         snapshot_id=args.snapshot_id,
+        launch_parameters=LaunchParameters(
+            after_idle=idle_config
+        ),
+        prebuilt=args.prebuilt,
     )
     print(f"create devbox={devbox.model_dump_json(indent=4)}")
 
@@ -467,6 +482,22 @@ async def run():
         help='Code mount dictionary. (--code_mounts {"repo_name": "my_repo", "repo_owner": "my_owner"})',
         type=_parse_code_mounts,
         action="append",
+    )
+    devbox_create_parser.add_argument(
+        "--idle_time",
+        type=int,
+        help="Time in seconds after which the idle action will be triggered",
+    )
+    devbox_create_parser.add_argument(
+        "--idle_action",
+        type=str,
+        choices=["shutdown", "suspend"],
+        help="Action to take when devbox becomes idle",
+    )
+    devbox_create_parser.add_argument(
+        "--prebuilt",
+        type=str,
+        help="Use a non standard prebuilt image.",
     )
 
     devbox_list_parser = devbox_subparsers.add_parser("list", help="List devboxes")
