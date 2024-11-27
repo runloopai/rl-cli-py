@@ -4,14 +4,15 @@ import datetime
 import functools
 import json
 import os
-import subprocess
 import shlex
+import subprocess
 import sys
-import signal
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
 from runloop_api_client.types import blueprint_create_params, CodeMountParametersParam
 from runloop_api_client.types.shared_params import AfterIdle, LaunchParameters
+
+from rl_cli.net import api_get, api_post
 
 
 def base_url() -> str:
@@ -101,7 +102,9 @@ async def create_devbox(args) -> None:
         code_mounts=args.code_mounts,
         snapshot_id=args.snapshot_id,
         launch_parameters=LaunchParameters(
-            after_idle=idle_config
+            after_idle=idle_config,
+            available_ports=args.available_ports,
+            resource_size_request="LARGE",
         ),
         prebuilt=args.prebuilt,
     )
@@ -389,50 +392,31 @@ async def devbox_rsync(args) -> None:
         sys.exit(e.returncode)
 
 
-async def devbox_tunnel(args) -> None:
-    if args.id is None:
-        raise ValueError("The 'id' argument is required and was not provided.")
+async def list_repos(args) -> None:
+    repos = api_get("/v1/repositories")
 
-    if ":" not in args.ports:
-        raise ValueError("Ports must be specified as 'local:remote'")
 
-    local_port, remote_port = args.ports.split(":")
+async def list_versions(args) -> None:
+    assert args.id is not None, "Repository ID is required"
+    versions = api_get(f"/v1/repositories/{args.id}/versions")
 
-    ssh_info = await get_devbox_ssh_key(args.id)
-    if not ssh_info:
-        return
 
-    keyfile_path, _, url = ssh_info
+async def delete_repo(args) -> None:
+    assert args.id is not None, "Repository ID is required"
+    api_post(f"/v1/repositories/{args.id}/delete", {})
 
-    proxy_command = f"openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2> /dev/null"
-    command = [
-        "/usr/bin/ssh",
-        "-i",
-        keyfile_path,
-        "-o",
-        f"ProxyCommand={proxy_command}",
-        "-o",
-        "StrictHostKeyChecking=no",
-        "-N",  # Do not execute a remote command
-        "-L",
-        f"{local_port}:localhost:{remote_port}",
-        f"user@{url}",
-    ]
 
-    print(f"Starting tunnel: local port {local_port} -> remote port {remote_port}")
-    print("Press Ctrl+C to stop the tunnel.")
+async def create_repo(args) -> None:
+    assert args.name is not None, "Repository name is required"
+    assert args.owner is not None, "Repository owner is required"
+    api_post("/v1/repositories", {"name": args.name, "owner": args.owner})
 
-    def signal_handler(sig, frame):
-        print("\nStopping tunnel...")
-        sys.exit(0)
 
-    signal.signal(signal.SIGINT, signal_handler)
-
-    try:
-        subprocess.run(command)
-    except subprocess.CalledProcessError as e:
-        print(f"Tunnel creation failed with exit code {e.returncode}")
-        sys.exit(e.returncode)
+async def create_devbox_tunnel(args) -> None:
+    assert args.id is not None
+    assert args.port is not None
+    url = await runloop_api_client().devboxes.create_tunnel(id=args.id, port=args.port)
+    print(f"tunnel_url=https://{url}")
 
 
 async def run():
@@ -441,6 +425,31 @@ async def run():
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    repository_parser = subparsers.add_parser("repos", help="Manage repos")
+    repository_subparsers = repository_parser.add_subparsers(dest="subcommand")
+
+    repository_list_parser = repository_subparsers.add_parser("list", help="List repos")
+    repository_list_parser.set_defaults(
+        func=lambda args: asyncio.create_task(list_repos(args))
+    )
+
+    repository_delete_parser = repository_subparsers.add_parser("delete", help="Delete a repo")
+    repository_delete_parser.add_argument("--id", type=str, help="Repository ID")
+    repository_delete_parser.set_defaults(
+        func=lambda args: asyncio.create_task(delete_repo(args))
+    )
+
+    version_list_parser = repository_subparsers.add_parser("versions", help="List versions")
+    version_list_parser.add_argument("--id", type=str, help="Repository ID")
+    version_list_parser.set_defaults(func=lambda args: asyncio.create_task(list_versions(args)))
+
+    repository_create_parser = repository_subparsers.add_parser("create", help="Create a repo")
+    repository_create_parser.add_argument("--name", type=str, help="Repository name")
+    repository_create_parser.add_argument("--owner", type=str, help="Repository owner")
+    repository_create_parser.set_defaults(
+        func=lambda args: asyncio.create_task(create_repo(args))
+    )
 
     # devbox subcommands
     devbox_parser = subparsers.add_parser("devbox", help="Manage devboxes")
@@ -494,6 +503,11 @@ async def run():
         "--prebuilt",
         type=str,
         help="Use a non standard prebuilt image.",
+    )
+    devbox_create_parser.add_argument(
+        "--available_ports",
+        type=int,
+        nargs="+",
     )
 
     devbox_list_parser = devbox_subparsers.add_parser("list", help="List devboxes")
@@ -633,11 +647,9 @@ async def run():
         "tunnel", help="Create an SSH tunnel to a devbox"
     )
     devbox_tunnel_parser.add_argument("--id", required=True, help="ID of the devbox")
-    devbox_tunnel_parser.add_argument(
-        "ports", help="Port specification in the format 'local:remote'"
-    )
+    devbox_tunnel_parser.add_argument("--port", required=True, help="Port to tunnel")
     devbox_tunnel_parser.set_defaults(
-        func=lambda args: asyncio.create_task(devbox_tunnel(args))
+        func=lambda args: asyncio.create_task(create_devbox_tunnel(args))
     )
 
     # invocation subcommands
