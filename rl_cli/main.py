@@ -96,13 +96,13 @@ async def create_devbox(args) -> None:
     devbox = await runloop_api_client().devboxes.create(
         entrypoint=args.entrypoint,
         environment_variables=_args_to_dict(args.env_vars),
-        setup_commands=args.setup_commands,
         blueprint_id=args.blueprint_id,
         blueprint_name=args.blueprint_name,
         code_mounts=args.code_mounts,
         snapshot_id=args.snapshot_id,
         launch_parameters=LaunchParameters(
-            after_idle=idle_config
+            after_idle=idle_config,
+            launch_commands=args.launch_commands
         ),
         prebuilt=args.prebuilt,
     )
@@ -454,9 +454,9 @@ async def run():
         func=lambda args: asyncio.create_task(create_devbox(args))
     )
     devbox_create_parser.add_argument(
-        "--setup_commands",
+        "--launch_commands",
         help="Devbox initialization commands. "
-        '(--setup_commands "echo hello > tmp.txt" --setup_commands "cat tmp.txt")',
+        '(--launch_commands "echo hello > tmp.txt" --launch_commands "cat tmp.txt")',
         action="append",
     )
     devbox_create_parser.add_argument(
