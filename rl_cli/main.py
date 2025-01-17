@@ -10,8 +10,8 @@ import sys
 import signal
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
-from runloop_api_client.types import blueprint_create_params, CodeMountParametersParam
-from runloop_api_client.types.shared_params import AfterIdle, LaunchParameters
+from runloop_api_client.types import blueprint_create_params
+from runloop_api_client.types.shared_params import AfterIdle, LaunchParameters, CodeMountParameters
 
 
 def base_url() -> str:
@@ -41,10 +41,10 @@ def _parse_env_arg(arg):
     return key, value
 
 
-def _parse_code_mounts(arg) -> CodeMountParametersParam | None:
+def _parse_code_mounts(arg) -> CodeMountParameters | None:
     if arg is None:
         return None
-    return CodeMountParametersParam(**json.loads(arg))
+    return CodeMountParameters(**json.loads(arg))
 
 
 def _args_to_dict(input_list) -> dict | NotGiven:
