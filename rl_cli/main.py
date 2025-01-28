@@ -10,8 +10,11 @@ import sys
 import signal
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
-from runloop_api_client.types import blueprint_create_params
-from runloop_api_client.types.shared_params import AfterIdle, LaunchParameters, CodeMountParameters
+from runloop_api_client.types.shared_params import (
+    AfterIdle,
+    LaunchParameters,
+    CodeMountParameters,
+)
 
 
 def base_url() -> str:
@@ -59,9 +62,8 @@ async def create_blueprint(args) -> None:
         with open(args.dockerfile_path) as f:
             dockerfile_contents = f.read()
 
-    launch_parameters = blueprint_create_params.LaunchParameters(
-        resource_size_request=args.resources,
-        available_ports=args.available_ports
+    launch_parameters = LaunchParameters(
+        resource_size_request=args.resources, available_ports=args.available_ports
     )
 
     blueprint = await runloop_api_client().blueprints.create(
@@ -86,11 +88,10 @@ async def create_devbox(args) -> None:
     if (args.idle_time is not None) != (args.idle_action is not None):
         raise ValueError("If either idle_time or idle_action is set, both must be set")
         # Create IdleConfigurationParameters if both idle params are set
-    idle_config: runloop_api_client.types.shared.launch_parameters.AfterIdle | None = None
+    idle_config: AfterIdle | None = None
     if args.idle_time is not None and args.idle_action is not None:
         idle_config = AfterIdle(
-            idle_time_seconds=args.idle_time,
-            on_idle=args.idle_action
+            idle_time_seconds=args.idle_time, on_idle=args.idle_action
         )
 
     devbox = await runloop_api_client().devboxes.create(
@@ -101,8 +102,7 @@ async def create_devbox(args) -> None:
         code_mounts=args.code_mounts,
         snapshot_id=args.snapshot_id,
         launch_parameters=LaunchParameters(
-            after_idle=idle_config,
-            launch_commands=args.launch_commands
+            after_idle=idle_config, launch_commands=args.launch_commands
         ),
         prebuilt=args.prebuilt,
     )
@@ -111,11 +111,10 @@ async def create_devbox(args) -> None:
 
 async def list_devboxes(args) -> None:
     devboxes = await runloop_api_client().devboxes.list()
-    [
-        print(f"devbox={devbox.model_dump_json(indent=4)}")
-        for devbox in devboxes.devboxes or []
-        if args.status is None or devbox.status == args.status
-    ]
+    # Print all devboxes matching the status filter.
+    async for devbox in devboxes:
+        if args.status is None or devbox.status == args.status:
+            print(f"devbox={devbox.model_dump_json(indent=4)}")
 
 
 async def list_functions(args) -> None:
@@ -170,7 +169,7 @@ async def get_async_exec(args) -> None:
     assert args.id is not None
     assert args.execution_id is not None
     devbox = await runloop_api_client().devboxes.executions.retrieve(
-        execution_id=args.execution_id, id=args.id
+        execution_id=args.execution_id, devbox_id=args.id
     )
     print(f"execution={devbox.model_dump_json(indent=4)}")
 
@@ -182,7 +181,7 @@ async def snapshot_devbox(args) -> None:
 
 
 async def list_snapshots(args) -> None:
-    snapshots_list = await runloop_api_client().devboxes.disk_snapshots()
+    snapshots_list = await runloop_api_client().devboxes.list_disk_snapshots()
     print(f"snapshots={snapshots_list.model_dump_json(indent=4)}")
 
 
@@ -437,7 +436,9 @@ async def devbox_tunnel(args) -> None:
 
 
 async def run():
-    assert os.getenv("RUNLOOP_API_KEY"), "API key not found, RUNLOOP_API_KEY must be set"
+    assert os.getenv(
+        "RUNLOOP_API_KEY"
+    ), "API key not found, RUNLOOP_API_KEY must be set"
 
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
@@ -508,7 +509,15 @@ async def run():
         "--status",
         type=str,
         help="Devbox status.",
-        choices=["initializing", "running", "suspending", "suspended", "resuming", "failure", "shutdown"],
+        choices=[
+            "initializing",
+            "running",
+            "suspending",
+            "suspended",
+            "resuming",
+            "failure",
+            "shutdown",
+        ],
     )
 
     devbox_get_parser = devbox_subparsers.add_parser("get", help="Get devbox")
@@ -549,15 +558,23 @@ async def run():
     devbox_snapshot_parser = devbox_subparsers.add_parser(
         "snapshot", help="Work with devbox snapshots"
     )
-    devbox_snapshot_subparsers = devbox_snapshot_parser.add_subparsers(dest="subcommand")
-    
-    devbox_snapshot_create_parser = devbox_snapshot_subparsers.add_parser("create", help="Create a snapshot of a running devbox")
-    devbox_snapshot_create_parser.add_argument("--devbox_id", required=True, help="ID of the devbox to snapshot")
+    devbox_snapshot_subparsers = devbox_snapshot_parser.add_subparsers(
+        dest="subcommand"
+    )
+
+    devbox_snapshot_create_parser = devbox_snapshot_subparsers.add_parser(
+        "create", help="Create a snapshot of a running devbox"
+    )
+    devbox_snapshot_create_parser.add_argument(
+        "--devbox_id", required=True, help="ID of the devbox to snapshot"
+    )
     devbox_snapshot_create_parser.set_defaults(
         func=lambda args: asyncio.create_task(snapshot_devbox(args))
     )
 
-    devbox_snapshot_list_parser = devbox_snapshot_subparsers.add_parser("list", help="List devbox snapshots")
+    devbox_snapshot_list_parser = devbox_snapshot_subparsers.add_parser(
+        "list", help="List devbox snapshots"
+    )
     devbox_snapshot_list_parser.set_defaults(
         func=lambda args: asyncio.create_task(list_snapshots(args))
     )
