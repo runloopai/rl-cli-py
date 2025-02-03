@@ -436,10 +436,6 @@ async def devbox_tunnel(args) -> None:
 
 
 async def run():
-    assert os.getenv(
-        "RUNLOOP_API_KEY"
-    ), "API key not found, RUNLOOP_API_KEY must be set"
-
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -765,13 +761,19 @@ async def run():
 
     args = parser.parse_args()
     if hasattr(args, "func"):
+        if not os.getenv("RUNLOOP_API_KEY"):
+            raise RuntimeError("API key not found, RUNLOOP_API_KEY must be set")
         await args.func(args)
     else:
         parser.print_help()
 
 
 def main():
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    except Exception as e:
+        print(f"error: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
