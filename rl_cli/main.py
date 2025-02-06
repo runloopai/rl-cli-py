@@ -102,7 +102,9 @@ async def create_devbox(args) -> None:
         code_mounts=args.code_mounts,
         snapshot_id=args.snapshot_id,
         launch_parameters=LaunchParameters(
-            after_idle=idle_config, launch_commands=args.launch_commands
+            after_idle=idle_config, 
+            launch_commands=args.launch_commands,
+            resource_size_request=args.resources
         ),
         prebuilt=args.prebuilt,
     )
@@ -495,6 +497,12 @@ async def run():
         "--prebuilt",
         type=str,
         help="Use a non standard prebuilt image.",
+    )
+    devbox_create_parser.add_argument(
+        "--resources",
+        type=str,
+        help="Devbox resource specification.",
+        choices=["SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
     )
 
     devbox_list_parser = devbox_subparsers.add_parser("list", help="List devboxes")
