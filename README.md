@@ -3,6 +3,36 @@ A command line utility for interacting with runloop APIs.
 
 **NOTE: This project is still in early alpha release**
 
+# Table of Contents
+- [Setup](#setup)
+  - [Install using pipx](#install-using-pipx)
+  - [For developers](#for-developers)
+- [Quick Reference](#quick-reference)
+  - [Devbox](#devbox)
+  - [Blueprint](#blueprint)
+  - [Snapshot](#snapshot)
+- [Command Reference](#command-reference)
+  - [Devbox Commands](#devbox-commands)
+    - [Create a Devbox](#create-a-devbox)
+    - [List Devboxes](#list-devboxes)
+    - [Get Devbox Details](#get-devbox-details)
+    - [Execute Commands](#execute-commands)
+    - [SSH Access](#ssh-access)
+    - [File Transfer](#file-transfer)
+    - [Port Forwarding](#port-forwarding)
+    - [Devbox Management](#devbox-management)
+  - [Blueprint Commands](#blueprint-commands)
+    - [Create Blueprint](#create-blueprint)
+    - [Preview Blueprint](#preview-blueprint)
+    - [List Blueprints](#list-blueprints)
+    - [Get Blueprint Details](#get-blueprint-details)
+    - [View Blueprint Logs](#view-blueprint-logs)
+  - [Snapshot Commands](#snapshot-commands)
+    - [Create Snapshot](#create-snapshot)
+    - [List Snapshots](#list-snapshots)
+  - [Invocation Commands](#invocation-commands)
+    - [Get Invocation Details](#get-invocation-details)
+
 # Setup
 
 ## Install using pipx
@@ -86,6 +116,7 @@ devbox={
 }
 ```
 
+
 ### Use scp to copy files to/from the devbox
 ```commandline
 To use the SCP command:
@@ -115,4 +146,193 @@ To use the tunnel command:
    rl devbox tunnel --id <devbox_id> <local_port>:<remote_port>
 
 Note that this is a blocking command that will block for duration of tunnel.
+```
+
+## Blueprint
+
+### Create a Blueprint with setup commands
+```commandline
+rl blueprint create --name=<blueprint_name> --system_setup_commands "<setup commands>"
+```
+
+## Snapshot
+
+### Create a Snapshot of devbox
+```commandline
+rl devbox snapshot create --devbox_id=<devbox_id>
+```
+
+# Command Reference
+
+## Devbox Commands
+
+### Create a Devbox
+```commandline
+rl devbox create [options]
+
+Options:
+  --launch_commands      Devbox initialization commands (can be specified multiple times)
+  --entrypoint          Devbox entrypoint command
+  --blueprint_id        ID of the blueprint to use
+  --blueprint_name      Name of the blueprint to use
+  --snapshot_id         ID of the snapshot to use
+  --env_vars           Environment variables in key=value format (can be specified multiple times)
+  --code_mounts        Code mount configuration in JSON format
+  --idle_time          Time in seconds after which idle action will be triggered
+  --idle_action        Action to take when devbox becomes idle (shutdown/suspend)
+  --prebuilt           Use a non-standard prebuilt image
+  --resources          Devbox resource specification (SMALL/MEDIUM/LARGE/X_LARGE/XX_LARGE)
+```
+
+### List Devboxes
+```commandline
+rl devbox list [options]
+
+Options:
+  --status             Filter by devbox status (initializing/running/suspending/suspended/resuming/failure/shutdown)
+```
+
+### Get Devbox Details
+```commandline
+rl devbox get --id <devbox_id>
+```
+
+### Execute Commands
+
+#### Synchronous Execution
+```commandline
+rl devbox exec --id <devbox_id> --command "<command>"
+```
+
+#### Asynchronous Execution
+```commandline
+# Start async execution
+rl devbox exec_async --id <devbox_id> --command "<command>"
+
+# Get execution status
+rl devbox get_async --id <devbox_id> --execution_id <execution_id>
+```
+
+### SSH Access
+```commandline
+# SSH into devbox
+rl devbox ssh --id <devbox_id>
+
+# Print SSH config only
+rl devbox ssh --id <devbox_id> --config-only
+```
+
+### File Transfer
+
+#### SCP
+```commandline
+# Copy to devbox
+rl devbox scp local_file.txt :remote_file.txt --id <devbox_id>
+
+# Copy from devbox
+rl devbox scp :remote_file.txt local_file.txt --id <devbox_id>
+
+# Additional options
+rl devbox scp --scp-options "-r" local_dir :remote_dir --id <devbox_id>
+```
+
+#### Rsync
+```commandline
+# Copy to devbox
+rl devbox rsync local_dir :remote_dir --id <devbox_id>
+
+# Copy from devbox
+rl devbox rsync :remote_dir local_dir --id <devbox_id>
+
+# Additional options
+rl devbox rsync --rsync-options "-avz" local_dir :remote_dir --id <devbox_id>
+```
+
+### Port Forwarding
+```commandline
+rl devbox tunnel --id <devbox_id> <local_port>:<remote_port>
+```
+
+### Devbox Management
+
+#### Suspend Devbox
+```commandline
+rl devbox suspend --id <devbox_id>
+```
+
+#### Resume Devbox
+```commandline
+rl devbox resume --id <devbox_id>
+```
+
+#### Shutdown Devbox
+```commandline
+rl devbox shutdown --id <devbox_id>
+```
+
+#### View Logs
+```commandline
+rl devbox logs --id <devbox_id>
+```
+
+## Blueprint Commands
+
+### Create Blueprint
+```commandline
+rl blueprint create [options]
+
+Options:
+  --name               Blueprint name (required)
+  --system_setup_commands  System initialization commands (can be specified multiple times)
+  --dockerfile        Dockerfile contents as text
+  --dockerfile_path   Path to Dockerfile
+  --resources         Resource specification (SMALL/MEDIUM/LARGE/X_LARGE/XX_LARGE)
+  --available_ports   List of available ports (can be specified multiple times)
+```
+
+### Preview Blueprint
+```commandline
+rl blueprint preview [options]
+
+Options:
+  --name               Blueprint name (required)
+  --dockerfile        Dockerfile contents as text
+  --system_setup_commands  System initialization commands (can be specified multiple times)
+```
+
+### List Blueprints
+```commandline
+rl blueprint list [options]
+
+Options:
+  --name              Filter by blueprint name
+```
+
+### Get Blueprint Details
+```commandline
+rl blueprint get --id <blueprint_id>
+```
+
+### View Blueprint Logs
+```commandline
+rl blueprint logs --id <blueprint_id>
+```
+
+## Snapshot Commands
+
+### Create Snapshot
+```commandline
+rl devbox snapshot create --devbox_id <devbox_id>
+```
+
+### List Snapshots
+```commandline
+rl devbox snapshot list
+```
+
+## Invocation Commands
+
+### Get Invocation Details
+```commandline
+rl invocation get --id <invocation_id>
 ```
