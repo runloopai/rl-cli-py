@@ -502,7 +502,7 @@ async def run():
         "--resources",
         type=str,
         help="Devbox resource specification.",
-        choices=["SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
+        choices=["X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
     )
 
     devbox_list_parser = devbox_subparsers.add_parser("list", help="List devboxes")
@@ -708,7 +708,7 @@ async def run():
         "--resources",
         type=str,
         help="Devbox resource specification.",
-        choices=["SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
+        choices=["X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
     )
     blueprint_create_parser.add_argument(
         "--available_ports",
