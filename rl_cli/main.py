@@ -94,6 +94,9 @@ async def create_devbox(args) -> None:
             idle_time_seconds=args.idle_time, on_idle=args.idle_action
         )
 
+    if args.architecture is not None and (args.blueprint_id is not None or args.blueprint_name is not None):
+        raise ValueError("Architecture cannot be specified when using a blueprint (blueprint_id or blueprint_name)")
+
     devbox = await runloop_api_client().devboxes.create(
         entrypoint=args.entrypoint,
         environment_variables=_args_to_dict(args.env_vars),
