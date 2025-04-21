@@ -94,6 +94,9 @@ async def create_devbox(args) -> None:
             idle_time_seconds=args.idle_time, on_idle=args.idle_action
         )
 
+    if args.architecture is not None and (args.blueprint_id is not None or args.blueprint_name is not None):
+        raise ValueError("Architecture cannot be specified when using a blueprint (blueprint_id or blueprint_name)")
+
     devbox = await runloop_api_client().devboxes.create(
         entrypoint=args.entrypoint,
         environment_variables=_args_to_dict(args.env_vars),
@@ -104,7 +107,8 @@ async def create_devbox(args) -> None:
         launch_parameters=LaunchParameters(
             after_idle=idle_config, 
             launch_commands=args.launch_commands,
-            resource_size_request=args.resources
+            resource_size_request=args.resources,
+            architecture=args.architecture
         ),
         prebuilt=args.prebuilt,
     )
@@ -503,6 +507,12 @@ async def run():
         type=str,
         help="Devbox resource specification.",
         choices=["X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
+    )
+    devbox_create_parser.add_argument(
+        "--architecture",
+        type=str,
+        help="Devbox architecture. If not specified, defaults to arm64.",
+        choices=["arm64", "x86_64"],
     )
 
     devbox_list_parser = devbox_subparsers.add_parser("list", help="List devboxes")
