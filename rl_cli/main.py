@@ -15,6 +15,7 @@ from runloop_api_client.types.shared_params import (
     LaunchParameters,
     CodeMountParameters,
 )
+from runloop_api_client.types.shared_params.launch_parameters import UserParameters
 
 
 def base_url() -> str:
@@ -63,7 +64,9 @@ async def create_blueprint(args) -> None:
             dockerfile_contents = f.read()
 
     launch_parameters = LaunchParameters(
-        resource_size_request=args.resources, available_ports=args.available_ports
+        resource_size_request=args.resources,
+        available_ports=args.available_ports,
+        architecture=args.architecture,
     )
 
     blueprint = await runloop_api_client().blueprints.create(
@@ -94,8 +97,14 @@ async def create_devbox(args) -> None:
             idle_time_seconds=args.idle_time, on_idle=args.idle_action
         )
 
-    if args.architecture is not None and (args.blueprint_id is not None or args.blueprint_name is not None):
-        raise ValueError("Architecture cannot be specified when using a blueprint (blueprint_id or blueprint_name)")
+    if args.architecture is not None and (
+        args.blueprint_id is not None or args.blueprint_name is not None
+    ):
+        raise ValueError(
+            "Architecture cannot be specified when using a blueprint (blueprint_id or blueprint_name)"
+        )
+
+    user_parameters = UserParameters(username="root", uid=0) if args.root else None
 
     devbox = await runloop_api_client().devboxes.create(
         entrypoint=args.entrypoint,
@@ -105,10 +114,11 @@ async def create_devbox(args) -> None:
         code_mounts=args.code_mounts,
         snapshot_id=args.snapshot_id,
         launch_parameters=LaunchParameters(
-            after_idle=idle_config, 
+            after_idle=idle_config,
             launch_commands=args.launch_commands,
             resource_size_request=args.resources,
-            architecture=args.architecture
+            architecture=args.architecture,
+            user_parameters=user_parameters,
         ),
         prebuilt=args.prebuilt,
     )
@@ -277,6 +287,13 @@ async def devbox_ssh(args) -> None:
     if args.id is None:
         raise ValueError("The 'id' argument is required and was not provided.")
 
+    devbox = await runloop_api_client().devboxes.retrieve(args.id)
+    user = (
+        devbox.launch_parameters.user_parameters.username
+        if devbox.launch_parameters.user_parameters
+        else "user"
+    )
+
     ssh_info = await get_devbox_ssh_key(args.id)
     if not ssh_info:
         return
@@ -288,7 +305,7 @@ async def devbox_ssh(args) -> None:
             f"""
 Host {args.id}
   Hostname {url}
-  User user
+  User {user}
   IdentityFile {keyfile_path}
   StrictHostKeyChecking no
   ProxyCommand openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2>/dev/null
@@ -305,7 +322,7 @@ Host {args.id}
         f"ProxyCommand={proxy_command}",
         "-o",
         "StrictHostKeyChecking=no",
-        f"user@{url}",
+        f"{user}@{url}",
     ]
     subprocess.run(command)
 
@@ -513,6 +530,11 @@ async def run():
         type=str,
         help="Devbox architecture. If not specified, defaults to arm64.",
         choices=["arm64", "x86_64"],
+    )
+    devbox_create_parser.add_argument(
+        "--root",
+        action="store_true",
+        help="Create devbox as root user.",
     )
 
     devbox_list_parser = devbox_subparsers.add_parser("list", help="List devboxes")
@@ -725,6 +747,12 @@ async def run():
         type=int,
         nargs="+",
         help="List of available ports for the blueprint (e.g., --available-ports 8000 8080 3000)",
+    )
+    blueprint_create_parser.add_argument(
+        "--architecture",
+        type=str,
+        help="Devbox architecture. If not specified, defaults to arm64.",
+        choices=["arm64", "x86_64"],
     )
 
     blueprint_preview_parser = blueprint_subparsers.add_parser(
