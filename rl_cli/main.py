@@ -457,83 +457,8 @@ async def devbox_tunnel(args) -> None:
         print(f"Tunnel creation failed with exit code {e.returncode}")
         sys.exit(e.returncode)
 
-async def devbox_read(args) -> None:
-    assert args.id is not None
-    assert args.path is not None
-    assert args.output is not None
-
-    # Get devbox info to determine the correct username
-    devbox = await runloop_api_client().devboxes.retrieve(args.id)
-    user = (
-        devbox.launch_parameters.user_parameters.username
-        if devbox.launch_parameters.user_parameters
-        else "user"
-    )
-
-    chunk_size = 1024  # 1KB chunks
-    offset = 0
-
-    try:
-        with open(args.output, 'wb') as f:
-            while True:
-                result = await runloop_api_client().devboxes.read_file(
-                    id=args.id,
-                    path=args.path,
-                    offset=offset,
-                    length=chunk_size
-                )
-                
-                if not result or not result.data:
-                    break
-                    
-                f.write(result.data)
-                offset += len(result.data)
-                
-                if len(result.data) < chunk_size:
-                    break
-    except Exception as e:
-        print(f"error: Failed to read file: {e}")
-        sys.exit(1)
-
-async def devbox_write(args) -> None:
-    assert args.id is not None
-    assert args.path is not None
-    assert args.input is not None
-
-    # Get devbox info to determine the correct username
-    devbox = await runloop_api_client().devboxes.retrieve(args.id)
-    user = (
-        devbox.launch_parameters.user_parameters.username
-        if devbox.launch_parameters.user_parameters
-        else "user"
-    )
-
-    chunk_size = 1024  # 1KB chunks
-    offset = 0
-
-    try:
-        with open(args.input, 'rb') as f:
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                    
-                await runloop_api_client().devboxes.write_file(
-                    id=args.id,
-                    path=args.path,
-                    data=chunk,
-                    offset=offset
-                )
-                
-                offset += len(chunk)
-    except Exception as e:
-        print(f"error: Failed to write file: {e}")
-        sys.exit(1)
 
 async def run():
-    if os.getenv("RUNLOOP_API_KEY") is None:
-        raise ValueError("Runloop API key not found in environment variables.")
-
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -770,24 +695,6 @@ async def run():
     )
     devbox_tunnel_parser.set_defaults(
         func=lambda args: asyncio.create_task(devbox_tunnel(args))
-    )
-
-    # Add the new read subcommand to the devbox subparser
-    devbox_read_parser = devbox_subparsers.add_parser("read", help="Read a file from a devbox in chunks")
-    devbox_read_parser.add_argument("--id", required=True, help="ID of the devbox")
-    devbox_read_parser.add_argument("--path", required=True, help="Path to the file on the devbox")
-    devbox_read_parser.add_argument("--output", required=True, help="Local path to write the file to")
-    devbox_read_parser.set_defaults(
-        func=lambda args: asyncio.create_task(devbox_read(args))
-    )
-
-    # Add the new write subcommand to the devbox subparser
-    devbox_write_parser = devbox_subparsers.add_parser("write", help="Write a file to a devbox in chunks")
-    devbox_write_parser.add_argument("--id", required=True, help="ID of the devbox")
-    devbox_write_parser.add_argument("--path", required=True, help="Path to write the file to on the devbox")
-    devbox_write_parser.add_argument("--input", required=True, help="Local path to read the file from")
-    devbox_write_parser.set_defaults(
-        func=lambda args: asyncio.create_task(devbox_write(args))
     )
 
     # invocation subcommands
