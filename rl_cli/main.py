@@ -534,7 +534,6 @@ async def run():
     if os.getenv("RUNLOOP_API_KEY") is None:
         raise ValueError("Runloop API key not found in environment variables.")
 
-async def run():
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
