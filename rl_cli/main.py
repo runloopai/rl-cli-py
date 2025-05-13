@@ -10,7 +10,12 @@ import sys
 import signal
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
-from runloop_api_client.types import blueprint_create_params, CodeMountParametersParam
+from runloop_api_client.types.shared_params import (
+    AfterIdle,
+    LaunchParameters,
+    CodeMountParameters,
+)
+from runloop_api_client.types.shared_params.launch_parameters import UserParameters
 
 
 def base_url() -> str:
@@ -32,9 +37,6 @@ def ssh_url() -> str:
 
 @functools.cache
 def runloop_api_client() -> AsyncRunloop:
-    if not os.getenv("RUNLOOP_API_KEY"):
-        raise ValueError("RUNLOOP_API_KEY must be set in the environment.")
-
     return AsyncRunloop(bearer_token=os.getenv("RUNLOOP_API_KEY"), base_url=base_url())
 
 
@@ -43,10 +45,10 @@ def _parse_env_arg(arg):
     return key, value
 
 
-def _parse_code_mounts(arg) -> CodeMountParametersParam | None:
+def _parse_code_mounts(arg) -> CodeMountParameters | None:
     if arg is None:
         return None
-    return CodeMountParametersParam(**json.loads(arg))
+    return CodeMountParameters(**json.loads(arg))
 
 
 def _args_to_dict(input_list) -> dict | NotGiven:
@@ -61,8 +63,10 @@ async def create_blueprint(args) -> None:
         with open(args.dockerfile_path) as f:
             dockerfile_contents = f.read()
 
-    launch_parameters = blueprint_create_params.LaunchParameters(
-        resource_size_request=args.resources
+    launch_parameters = LaunchParameters(
+        resource_size_request=args.resources,
+        available_ports=args.available_ports,
+        architecture=args.architecture,
     )
 
     blueprint = await runloop_api_client().blueprints.create(
@@ -84,23 +88,49 @@ async def preview(args) -> None:
 
 
 async def create_devbox(args) -> None:
+    if (args.idle_time is not None) != (args.idle_action is not None):
+        raise ValueError("If either idle_time or idle_action is set, both must be set")
+        # Create IdleConfigurationParameters if both idle params are set
+    idle_config: AfterIdle | None = None
+    if args.idle_time is not None and args.idle_action is not None:
+        idle_config = AfterIdle(
+            idle_time_seconds=args.idle_time, on_idle=args.idle_action
+        )
+
+    if args.architecture is not None and (
+        args.blueprint_id is not None or args.blueprint_name is not None
+    ):
+        raise ValueError(
+            "Architecture cannot be specified when using a blueprint (blueprint_id or blueprint_name)"
+        )
+
+    user_parameters = UserParameters(username="root", uid=0) if args.root else None
+
     devbox = await runloop_api_client().devboxes.create(
         entrypoint=args.entrypoint,
         environment_variables=_args_to_dict(args.env_vars),
-        setup_commands=args.setup_commands,
         blueprint_id=args.blueprint_id,
+        blueprint_name=args.blueprint_name,
         code_mounts=args.code_mounts,
+        snapshot_id=args.snapshot_id,
+        launch_parameters=LaunchParameters(
+            after_idle=idle_config,
+            launch_commands=args.launch_commands,
+            resource_size_request=args.resources,
+            architecture=args.architecture,
+            user_parameters=user_parameters,
+        ),
+        prebuilt=args.prebuilt,
     )
     print(f"create devbox={devbox.model_dump_json(indent=4)}")
 
 
 async def list_devboxes(args) -> None:
     devboxes = await runloop_api_client().devboxes.list()
-    [
-        print(f"devbox={devbox.model_dump_json(indent=4)}")
-        for devbox in devboxes.devboxes or []
-        if args.status is None or devbox.status == args.status
-    ]
+    # Print all devboxes matching the status filter.
+    async for devbox in devboxes:
+        if args.status is None or devbox.status == args.status:
+            print(f"devbox={devbox.model_dump_json(indent=4)}")
 
 
 async def list_functions(args) -> None:
@@ -145,15 +175,42 @@ async def get_blueprint(args) -> None:
 async def execute_async(args) -> None:
     assert args.id is not None
     assert args.command is not None
-    devbox = await runloop_api_client().devboxes.execute_async(id=args.id, command=args.command)
+    devbox = await runloop_api_client().devboxes.execute_async(
+        id=args.id, command=args.command
+    )
     print(f"execution={devbox.model_dump_json(indent=4)}")
 
 
 async def get_async_exec(args) -> None:
     assert args.id is not None
     assert args.execution_id is not None
-    devbox = await runloop_api_client().devboxes.executions.retrieve(execution_id=args.execution_id, id=args.id)
+    devbox = await runloop_api_client().devboxes.executions.retrieve(
+        execution_id=args.execution_id, devbox_id=args.id
+    )
     print(f"execution={devbox.model_dump_json(indent=4)}")
+
+
+async def snapshot_devbox(args) -> None:
+    assert args.devbox_id is not None
+    snapshot = await runloop_api_client().devboxes.snapshot_disk(args.devbox_id)
+    print(f"snapshot={snapshot.model_dump_json(indent=4)}")
+
+
+async def list_snapshots(args) -> None:
+    snapshots_list = await runloop_api_client().devboxes.list_disk_snapshots()
+    print(f"snapshots={snapshots_list.model_dump_json(indent=4)}")
+
+
+async def suspend_devbox(args) -> None:
+    assert args.id is not None
+    devbox = await runloop_api_client().devboxes.suspend(args.id)
+    print(f"devbox={devbox.model_dump_json(indent=4)}")
+
+
+async def resume_devbox(args) -> None:
+    assert args.id is not None
+    devbox = await runloop_api_client().devboxes.resume(args.id)
+    print(f"devbox={devbox.model_dump_json(indent=4)}")
 
 
 async def shutdown_devbox(args) -> None:
@@ -211,29 +268,36 @@ async def get_devbox_ssh_key(devbox_id: str) -> tuple[str, str, str] | None:
     if not result:
         print("Failed to create ssh key")
         return None
-    
+
     key: str = result.ssh_private_key or ""
     url: str = result.url or ""
-    
+
     os.makedirs(os.path.expanduser("~/.runloop/ssh_keys"), exist_ok=True)
     keyfile_path = os.path.expanduser(f"~/.runloop/ssh_keys/{devbox_id}.pem")
-    with open(keyfile_path, "w", encoding='utf-8') as f:
+    with open(keyfile_path, "w", encoding="utf-8") as f:
         f.write(key)
         f.flush()
         os.fsync(f.fileno())
     os.chmod(keyfile_path, 0o600)
-    
+
     return keyfile_path, key, url
 
 
 async def devbox_ssh(args) -> None:
     if args.id is None:
         raise ValueError("The 'id' argument is required and was not provided.")
-    
+
+    devbox = await runloop_api_client().devboxes.retrieve(args.id)
+    user = (
+        devbox.launch_parameters.user_parameters.username
+        if devbox.launch_parameters.user_parameters
+        else "user"
+    )
+
     ssh_info = await get_devbox_ssh_key(args.id)
     if not ssh_info:
         return
-    
+
     keyfile_path, _, url = ssh_info
 
     if args.config_only:
@@ -241,14 +305,14 @@ async def devbox_ssh(args) -> None:
             f"""
 Host {args.id}
   Hostname {url}
-  User user
+  User {user}
   IdentityFile {keyfile_path}
   StrictHostKeyChecking no
   ProxyCommand openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2>/dev/null
             """
         )
         return
-    
+
     proxy_command = f"openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2> /dev/null"
     command = [
         "/usr/bin/ssh",
@@ -258,7 +322,7 @@ Host {args.id}
         f"ProxyCommand={proxy_command}",
         "-o",
         "StrictHostKeyChecking=no",
-        f"user@{url}",
+        f"{user}@{url}",
     ]
     subprocess.run(command)
 
@@ -271,27 +335,30 @@ async def devbox_scp(args) -> None:
     ssh_info = await get_devbox_ssh_key(args.id)
     if not ssh_info:
         return
-    
+
     keyfile_path, _, url = ssh_info
 
     proxy_command = f"openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2> /dev/null"
-    
+
     scp_command = [
         "scp",
-        "-i", keyfile_path,
-        "-o", f"ProxyCommand={proxy_command}",
-        "-o", "StrictHostKeyChecking=no",
+        "-i",
+        keyfile_path,
+        "-o",
+        f"ProxyCommand={proxy_command}",
+        "-o",
+        "StrictHostKeyChecking=no",
     ]
 
     if args.scp_options:
         scp_command.extend(shlex.split(args.scp_options))
 
-    if args.src.startswith(':'):
+    if args.src.startswith(":"):
         scp_command.append(f"user@{url}:{args.src[1:]}")  # Remove the leading ':'
         scp_command.append(args.dst)
     else:
         scp_command.append(args.src)
-        if args.dst.startswith(':'):
+        if args.dst.startswith(":"):
             scp_command.append(f"user@{url}:{args.dst[1:]}")  # Remove the leading ':'
         else:
             scp_command.append(args.dst)
@@ -302,6 +369,7 @@ async def devbox_scp(args) -> None:
         print(f"SCP command failed with exit code {e.returncode}")
         sys.exit(e.returncode)
 
+
 async def devbox_rsync(args) -> None:
     assert args.id is not None
     assert args.src is not None
@@ -310,28 +378,29 @@ async def devbox_rsync(args) -> None:
     ssh_info = await get_devbox_ssh_key(args.id)
     if not ssh_info:
         return
-    
+
     keyfile_path, _, url = ssh_info
 
     proxy_command = f"openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2> /dev/null"
-    
+
     ssh_options = f"-i {keyfile_path} -o ProxyCommand='{proxy_command}' -o StrictHostKeyChecking=no"
 
     rsync_command = [
         "rsync",
         "-vrz",  # v: verbose, r: recursive, z: compress
-        "-e", f"ssh {ssh_options}",
+        "-e",
+        f"ssh {ssh_options}",
     ]
 
     if args.rsync_options:
         rsync_command.extend(shlex.split(args.rsync_options))
 
-    if args.src.startswith(':'):
+    if args.src.startswith(":"):
         rsync_command.append(f"user@{url}:{args.src[1:]}")  # Remove the leading ':'
         rsync_command.append(args.dst)
     else:
         rsync_command.append(args.src)
-        if args.dst.startswith(':'):
+        if args.dst.startswith(":"):
             rsync_command.append(f"user@{url}:{args.dst[1:]}")  # Remove the leading ':'
         else:
             rsync_command.append(args.dst)
@@ -342,29 +411,34 @@ async def devbox_rsync(args) -> None:
         print(f"Rsync command failed with exit code {e.returncode}")
         sys.exit(e.returncode)
 
+
 async def devbox_tunnel(args) -> None:
     if args.id is None:
         raise ValueError("The 'id' argument is required and was not provided.")
-    
-    if ':' not in args.ports:
+
+    if ":" not in args.ports:
         raise ValueError("Ports must be specified as 'local:remote'")
-    
-    local_port, remote_port = args.ports.split(':')
-    
+
+    local_port, remote_port = args.ports.split(":")
+
     ssh_info = await get_devbox_ssh_key(args.id)
     if not ssh_info:
         return
-    
+
     keyfile_path, _, url = ssh_info
 
     proxy_command = f"openssl s_client -quiet -verify_quiet -servername %h -connect {ssh_url()} 2> /dev/null"
     command = [
         "/usr/bin/ssh",
-        "-i", keyfile_path,
-        "-o", f"ProxyCommand={proxy_command}",
-        "-o", "StrictHostKeyChecking=no",
+        "-i",
+        keyfile_path,
+        "-o",
+        f"ProxyCommand={proxy_command}",
+        "-o",
+        "StrictHostKeyChecking=no",
         "-N",  # Do not execute a remote command
-        "-L", f"{local_port}:localhost:{remote_port}",
+        "-L",
+        f"{local_port}:localhost:{remote_port}",
         f"user@{url}",
     ]
 
@@ -436,6 +510,7 @@ async def run():
     if os.getenv("RUNLOOP_API_KEY") is None:
         raise ValueError("Runloop API key not found in environment variables.")
 
+async def run():
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -451,9 +526,9 @@ async def run():
         func=lambda args: asyncio.create_task(create_devbox(args))
     )
     devbox_create_parser.add_argument(
-        "--setup_commands",
+        "--launch_commands",
         help="Devbox initialization commands. "
-        '(--setup_commands "echo hello > tmp.txt" --setup_commands "cat tmp.txt")',
+        '(--launch_commands "echo hello > tmp.txt" --launch_commands "cat tmp.txt")',
         action="append",
     )
     devbox_create_parser.add_argument(
@@ -463,6 +538,12 @@ async def run():
         "--blueprint_id", type=str, help="Blueprint to use, if any."
     )
     devbox_create_parser.add_argument(
+        "--blueprint_name", type=str, help="Blueprint to use, if any."
+    )
+    devbox_create_parser.add_argument(
+        "--snapshot_id", type=str, help="Snapshot to use, if any."
+    )
+    devbox_create_parser.add_argument(
         "--env_vars",
         help="Environment key-value variables. (--env_vars key1=value1 --env_vars key2=value2)",
         type=_parse_env_arg,
@@ -470,9 +551,42 @@ async def run():
     )
     devbox_create_parser.add_argument(
         "--code_mounts",
-        help="Code mount dictionary. (--code_mounts {\"repo_name\": \"my_repo\", \"repo_owner\": \"my_owner\"})",
+        help='Code mount dictionary. (--code_mounts {"repo_name": "my_repo", "repo_owner": "my_owner"})',
         type=_parse_code_mounts,
         action="append",
+    )
+    devbox_create_parser.add_argument(
+        "--idle_time",
+        type=int,
+        help="Time in seconds after which the idle action will be triggered",
+    )
+    devbox_create_parser.add_argument(
+        "--idle_action",
+        type=str,
+        choices=["shutdown", "suspend"],
+        help="Action to take when devbox becomes idle",
+    )
+    devbox_create_parser.add_argument(
+        "--prebuilt",
+        type=str,
+        help="Use a non standard prebuilt image.",
+    )
+    devbox_create_parser.add_argument(
+        "--resources",
+        type=str,
+        help="Devbox resource specification.",
+        choices=["X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
+    )
+    devbox_create_parser.add_argument(
+        "--architecture",
+        type=str,
+        help="Devbox architecture. If not specified, defaults to arm64.",
+        choices=["arm64", "x86_64"],
+    )
+    devbox_create_parser.add_argument(
+        "--root",
+        action="store_true",
+        help="Create devbox as root user.",
     )
 
     devbox_list_parser = devbox_subparsers.add_parser("list", help="List devboxes")
@@ -483,7 +597,15 @@ async def run():
         "--status",
         type=str,
         help="Devbox status.",
-        choices=["running", "stopped", "shutdown"],
+        choices=[
+            "initializing",
+            "running",
+            "suspending",
+            "suspended",
+            "resuming",
+            "failure",
+            "shutdown",
+        ],
     )
 
     devbox_get_parser = devbox_subparsers.add_parser("get", help="Get devbox")
@@ -521,6 +643,46 @@ async def run():
         func=lambda args: asyncio.create_task(devbox_logs(args))
     )
 
+    devbox_snapshot_parser = devbox_subparsers.add_parser(
+        "snapshot", help="Work with devbox snapshots"
+    )
+    devbox_snapshot_subparsers = devbox_snapshot_parser.add_subparsers(
+        dest="subcommand"
+    )
+
+    devbox_snapshot_create_parser = devbox_snapshot_subparsers.add_parser(
+        "create", help="Create a snapshot of a running devbox"
+    )
+    devbox_snapshot_create_parser.add_argument(
+        "--devbox_id", required=True, help="ID of the devbox to snapshot"
+    )
+    devbox_snapshot_create_parser.set_defaults(
+        func=lambda args: asyncio.create_task(snapshot_devbox(args))
+    )
+
+    devbox_snapshot_list_parser = devbox_snapshot_subparsers.add_parser(
+        "list", help="List devbox snapshots"
+    )
+    devbox_snapshot_list_parser.set_defaults(
+        func=lambda args: asyncio.create_task(list_snapshots(args))
+    )
+
+    devbox_suspend_parser = devbox_subparsers.add_parser(
+        "suspend", help="suspend a running devbox"
+    )
+    devbox_suspend_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_suspend_parser.set_defaults(
+        func=lambda args: asyncio.create_task(suspend_devbox(args))
+    )
+
+    devbox_resume_parser = devbox_subparsers.add_parser(
+        "resume", help="resume a suspended devbox"
+    )
+    devbox_resume_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_resume_parser.set_defaults(
+        func=lambda args: asyncio.create_task(resume_devbox(args))
+    )
+
     devbox_shutdown_parser = devbox_subparsers.add_parser(
         "shutdown", help="Shutdown a devbox"
     )
@@ -532,7 +694,9 @@ async def run():
     devbox_async_execution_parser = devbox_subparsers.add_parser(
         "exec_async", help="Initiate an asynchronous Devbox execution."
     )
-    devbox_async_execution_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_async_execution_parser.add_argument(
+        "--id", required=True, help="ID of the devbox"
+    )
     devbox_async_execution_parser.add_argument(
         "--command", required=True, help="Command to execute"
     )
@@ -543,15 +707,17 @@ async def run():
     devbox_async_execution_retrieve_parser = devbox_subparsers.add_parser(
         "get_async", help="Get an asynchronous Devbox execution."
     )
-    devbox_async_execution_retrieve_parser.add_argument("--id", required=True, help="ID of the devbox")
     devbox_async_execution_retrieve_parser.add_argument(
-        "--execution_id", required=True
+        "--id", required=True, help="ID of the devbox"
     )
+    devbox_async_execution_retrieve_parser.add_argument("--execution_id", required=True)
     devbox_async_execution_retrieve_parser.set_defaults(
         func=lambda args: asyncio.create_task(get_async_exec(args))
     )
 
-    devbox_scp_parser = devbox_subparsers.add_parser("scp", help="SCP files to/from a devbox")
+    devbox_scp_parser = devbox_subparsers.add_parser(
+        "scp", help="SCP files to/from a devbox"
+    )
     devbox_scp_parser.add_argument("src", help="Source file or directory")
     devbox_scp_parser.add_argument("dst", help="Destination file or directory")
     devbox_scp_parser.add_argument("--id", required=True, help="ID of the devbox")
@@ -560,7 +726,9 @@ async def run():
         func=lambda args: asyncio.create_task(devbox_scp(args))
     )
 
-    devbox_rsync_parser = devbox_subparsers.add_parser("rsync", help="Rsync files to/from a devbox")
+    devbox_rsync_parser = devbox_subparsers.add_parser(
+        "rsync", help="Rsync files to/from a devbox"
+    )
     devbox_rsync_parser.add_argument("src", help="Source file or directory")
     devbox_rsync_parser.add_argument("dst", help="Destination file or directory")
     devbox_rsync_parser.add_argument("--id", required=True, help="ID of the devbox")
@@ -570,9 +738,13 @@ async def run():
     )
 
     # Add the new tunnel subcommand to the devbox subparser
-    devbox_tunnel_parser = devbox_subparsers.add_parser("tunnel", help="Create an SSH tunnel to a devbox")
+    devbox_tunnel_parser = devbox_subparsers.add_parser(
+        "tunnel", help="Create an SSH tunnel to a devbox"
+    )
     devbox_tunnel_parser.add_argument("--id", required=True, help="ID of the devbox")
-    devbox_tunnel_parser.add_argument("ports", help="Port specification in the format 'local:remote'")
+    devbox_tunnel_parser.add_argument(
+        "ports", help="Port specification in the format 'local:remote'"
+    )
     devbox_tunnel_parser.set_defaults(
         func=lambda args: asyncio.create_task(devbox_tunnel(args))
     )
@@ -620,29 +792,37 @@ async def run():
         func=lambda args: asyncio.create_task(create_blueprint(args))
     )
     blueprint_create_parser.add_argument(
-        "--name",
-        help="Blueprint name. ",
-        required=True
+        "--name", help="Blueprint name. ", required=True
     )
     blueprint_create_parser.add_argument(
         "--system_setup_commands",
         help="Blueprint system initialization commands. "
-        '(--system_setup_commands "sudo apt install pipx")',
+        '(--system_setup_commands "sudo apt-get -y install pipx")',
         action="append",
     )
     blueprint_create_parser.add_argument(
-        "--dockerfile",
-        help="Text string of fully enumerated dockerfile.",
-        type=str
+        "--dockerfile", help="Text string of fully enumerated dockerfile.", type=str
     )
     blueprint_create_parser.add_argument(
-        "--dockerfile_path",
-        help="Path to a dockerfile to use.",
-        type=str
+        "--dockerfile_path", help="Path to a dockerfile to use.", type=str
     )
     blueprint_create_parser.add_argument(
-        "--resources", type=str, help="Devbox resource specification.",
-        choices=["SMALL", "MEDIUM", "   LARGE"]
+        "--resources",
+        type=str,
+        help="Devbox resource specification.",
+        choices=["X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
+    )
+    blueprint_create_parser.add_argument(
+        "--available_ports",
+        type=int,
+        nargs="+",
+        help="List of available ports for the blueprint (e.g., --available-ports 8000 8080 3000)",
+    )
+    blueprint_create_parser.add_argument(
+        "--architecture",
+        type=str,
+        help="Devbox architecture. If not specified, defaults to arm64.",
+        choices=["arm64", "x86_64"],
     )
 
     blueprint_preview_parser = blueprint_subparsers.add_parser(
@@ -652,14 +832,10 @@ async def run():
         func=lambda args: asyncio.create_task(preview(args))
     )
     blueprint_preview_parser.add_argument(
-        "--name",
-        help="Blueprint name. ",
-        required=True
+        "--name", help="Blueprint name. ", required=True
     )
     blueprint_preview_parser.add_argument(
-        "--dockerfile",
-        help="Blueprint fully enumerated dockerfile.",
-        type=str
+        "--dockerfile", help="Blueprint fully enumerated dockerfile.", type=str
     )
 
     blueprint_preview_parser.add_argument(
@@ -672,7 +848,9 @@ async def run():
     blueprint_list_parser = blueprint_subparsers.add_parser(
         "list", help="List blueprints"
     )
-    blueprint_list_parser.add_argument("--name", help="Blueprint name.", type=str, required=False)
+    blueprint_list_parser.add_argument(
+        "--name", help="Blueprint name.", type=str, required=False
+    )
     blueprint_list_parser.set_defaults(
         func=lambda args: asyncio.create_task(list_blueprints(args))
     )
@@ -687,7 +865,9 @@ async def run():
     blueprint_logs_parser = blueprint_subparsers.add_parser(
         "logs", help="Get blueprint build logs"
     )
-    blueprint_logs_parser.add_argument("--id", required=True, help="ID of the blueprint")
+    blueprint_logs_parser.add_argument(
+        "--id", required=True, help="ID of the blueprint"
+    )
     blueprint_logs_parser.set_defaults(
         func=lambda args: asyncio.create_task(blueprint_logs(args))
     )
@@ -697,13 +877,19 @@ async def run():
 
     args = parser.parse_args()
     if hasattr(args, "func"):
+        if not os.getenv("RUNLOOP_API_KEY"):
+            raise RuntimeError("API key not found, RUNLOOP_API_KEY must be set")
         await args.func(args)
     else:
         parser.print_help()
 
 
 def main():
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    except Exception as e:
+        print(f"error: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

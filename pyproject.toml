@@ -10,10 +10,9 @@ license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
 dependencies = [
-  "requests",
-  "httpx",
-  "runloop-api-client",
+  "runloop-api-client==0.32.0",
 ]
+requires-python = ">=3.12"
 
 [project.optional-dependencies]
 dev = [
@@ -25,6 +24,7 @@ dev = [
 
 [project.scripts]
 rl = "rl_cli.main:main"
+rl-cli = "rl_cli.main:main"
 
 [project.urls]
 Home = "https://www.runloop.ai"
