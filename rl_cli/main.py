@@ -462,49 +462,73 @@ async def devbox_read(args) -> None:
     assert args.path is not None
     assert args.output is not None
 
+    # Get devbox info to determine the correct username
+    devbox = await runloop_api_client().devboxes.retrieve(args.id)
+    user = (
+        devbox.launch_parameters.user_parameters.username
+        if devbox.launch_parameters.user_parameters
+        else "user"
+    )
+
     chunk_size = 1024  # 1KB chunks
     offset = 0
 
-    with open(args.output, 'wb') as f:
-        while True:
-            result = await runloop_api_client().devboxes.read_file(
-                id=args.id,
-                path=args.path,
-                offset=offset,
-                length=chunk_size
-            )
-            
-            if not result or not result.data:
-                break
+    try:
+        with open(args.output, 'wb') as f:
+            while True:
+                result = await runloop_api_client().devboxes.read_file(
+                    id=args.id,
+                    path=args.path,
+                    offset=offset,
+                    length=chunk_size
+                )
                 
-            f.write(result.data)
-            offset += len(result.data)
-            
-            if len(result.data) < chunk_size:
-                break
+                if not result or not result.data:
+                    break
+                    
+                f.write(result.data)
+                offset += len(result.data)
+                
+                if len(result.data) < chunk_size:
+                    break
+    except Exception as e:
+        print(f"error: Failed to read file: {e}")
+        sys.exit(1)
 
 async def devbox_write(args) -> None:
     assert args.id is not None
     assert args.path is not None
     assert args.input is not None
 
+    # Get devbox info to determine the correct username
+    devbox = await runloop_api_client().devboxes.retrieve(args.id)
+    user = (
+        devbox.launch_parameters.user_parameters.username
+        if devbox.launch_parameters.user_parameters
+        else "user"
+    )
+
     chunk_size = 1024  # 1KB chunks
     offset = 0
 
-    with open(args.input, 'rb') as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
+    try:
+        with open(args.input, 'rb') as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                    
+                await runloop_api_client().devboxes.write_file(
+                    id=args.id,
+                    path=args.path,
+                    data=chunk,
+                    offset=offset
+                )
                 
-            await runloop_api_client().devboxes.write_file(
-                id=args.id,
-                path=args.path,
-                data=chunk,
-                offset=offset
-            )
-            
-            offset += len(chunk)
+                offset += len(chunk)
+    except Exception as e:
+        print(f"error: Failed to write file: {e}")
+        sys.exit(1)
 
 async def run():
     if os.getenv("RUNLOOP_API_KEY") is None:
