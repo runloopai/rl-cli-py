@@ -458,6 +458,32 @@ async def devbox_tunnel(args) -> None:
         sys.exit(e.returncode)
 
 
+async def devbox_read(args) -> None:
+    assert args.id is not None
+    assert args.output is not None
+    # Write remote file contents to local output file
+    contents = await runloop_api_client().devboxes.read_file_contents(
+        id=args.id, file_path=args.remote
+    )
+    with open(args.output, "w", encoding="utf-8") as f:
+        f.write(contents)
+    print(f"Wrote remote file {args.remote} from devbox {args.id} to local file {args.output}")
+
+
+async def devbox_write(args) -> None:
+    assert args.id is not None
+    assert args.input is not None
+    assert args.remote is not None
+    if not os.path.exists(args.input):
+        raise FileNotFoundError(f"Input file {args.input} does not exist")
+    with open(args.input, "r", encoding="utf-8") as f:
+        contents = f.read()
+    await runloop_api_client().devboxes.write_file_contents(
+        id=args.id, file_path=args.remote, contents=contents
+    )
+    print(f"Wrote local file {args.input} to remote file {args.remote} on devbox {args.id}")
+
+
 async def run():
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
@@ -695,6 +721,26 @@ async def run():
     )
     devbox_tunnel_parser.set_defaults(
         func=lambda args: asyncio.create_task(devbox_tunnel(args))
+    )
+
+    devbox_read_parser = devbox_subparsers.add_parser(
+        "read", help="Read a file from a devbox using the API"
+    )
+    devbox_read_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_read_parser.add_argument("--remote", required=True, help="Remote file path to read from the devbox")
+    devbox_read_parser.add_argument("--output", required=True, help="Local file path to write the contents to")
+    devbox_read_parser.set_defaults(
+        func=lambda args: asyncio.create_task(devbox_read(args))
+    )
+
+    devbox_write_parser = devbox_subparsers.add_parser(
+        "write", help="Write a file to a devbox using the API"
+    )
+    devbox_write_parser.add_argument("--id", required=True, help="ID of the devbox")
+    devbox_write_parser.add_argument("--input", required=True, help="Local file path to read contents from")
+    devbox_write_parser.add_argument("--remote", required=True, help="Remote file path to write to on the devbox")
+    devbox_write_parser.set_defaults(
+        func=lambda args: asyncio.create_task(devbox_write(args))
     )
 
     # invocation subcommands
