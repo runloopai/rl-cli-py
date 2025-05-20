@@ -467,7 +467,9 @@ async def devbox_read(args) -> None:
     )
     with open(args.output, "w", encoding="utf-8") as f:
         f.write(contents)
-    print(f"Wrote remote file {args.remote} from devbox {args.id} to local file {args.output}")
+    print(
+        f"Wrote remote file {args.remote} from devbox {args.id} to local file {args.output}"
+    )
 
 
 async def devbox_write(args) -> None:
@@ -481,7 +483,33 @@ async def devbox_write(args) -> None:
     await runloop_api_client().devboxes.write_file_contents(
         id=args.id, file_path=args.remote, contents=contents
     )
-    print(f"Wrote local file {args.input} to remote file {args.remote} on devbox {args.id}")
+    print(
+        f"Wrote local file {args.input} to remote file {args.remote} on devbox {args.id}"
+    )
+
+
+async def upload_file(args) -> None:
+    assert args.id is not None
+    assert args.path is not None
+    assert args.file is not None
+
+    with open(args.file, "rb") as f:
+        await runloop_api_client().devboxes.upload_file(
+            id=args.id, path=args.path, file=f
+        )
+    print(f"Uploaded file {args.file} to {args.path}")
+
+
+async def download_file(args) -> None:
+    assert args.id is not None
+    assert args.file_path is not None
+    assert args.output_path is not None
+
+    result = await runloop_api_client().devboxes.download_file(
+        id=args.id, path=args.file_path
+    )
+    await result.write_to_file(args.output_path)
+    print(f"File downloaded to {args.output_path}")
 
 
 async def run():
@@ -727,8 +755,12 @@ async def run():
         "read", help="Read a file from a devbox using the API"
     )
     devbox_read_parser.add_argument("--id", required=True, help="ID of the devbox")
-    devbox_read_parser.add_argument("--remote", required=True, help="Remote file path to read from the devbox")
-    devbox_read_parser.add_argument("--output", required=True, help="Local file path to write the contents to")
+    devbox_read_parser.add_argument(
+        "--remote", required=True, help="Remote file path to read from the devbox"
+    )
+    devbox_read_parser.add_argument(
+        "--output", required=True, help="Local file path to write the contents to"
+    )
     devbox_read_parser.set_defaults(
         func=lambda args: asyncio.create_task(devbox_read(args))
     )
@@ -737,10 +769,48 @@ async def run():
         "write", help="Write a file to a devbox using the API"
     )
     devbox_write_parser.add_argument("--id", required=True, help="ID of the devbox")
-    devbox_write_parser.add_argument("--input", required=True, help="Local file path to read contents from")
-    devbox_write_parser.add_argument("--remote", required=True, help="Remote file path to write to on the devbox")
+    devbox_write_parser.add_argument(
+        "--input", required=True, help="Local file path to read contents from"
+    )
+    devbox_write_parser.add_argument(
+        "--remote", required=True, help="Remote file path to write to on the devbox"
+    )
     devbox_write_parser.set_defaults(
         func=lambda args: asyncio.create_task(devbox_write(args))
+    )
+
+    devbox_upload_file_parser = devbox_subparsers.add_parser(
+        "upload_file", help="Upload a file to a devbox"
+    )
+    devbox_upload_file_parser.add_argument(
+        "--id", required=True, help="ID of the devbox"
+    )
+    devbox_upload_file_parser.add_argument(
+        "--path", required=True, help="Path where to save the file in the devbox"
+    )
+    devbox_upload_file_parser.add_argument(
+        "--file", required=True, help="Path to the local file to upload"
+    )
+    devbox_upload_file_parser.set_defaults(
+        func=lambda args: asyncio.create_task(upload_file(args))
+    )
+
+    devbox_download_file_parser = devbox_subparsers.add_parser(
+        "download_file", help="Download a file from a devbox"
+    )
+    devbox_download_file_parser.add_argument(
+        "--id", required=True, help="ID of the devbox"
+    )
+    devbox_download_file_parser.add_argument(
+        "--file_path", required=True, help="Path to the file in the devbox"
+    )
+    devbox_download_file_parser.add_argument(
+        "--output_path",
+        required=True,
+        help="Local path where to save the downloaded file",
+    )
+    devbox_download_file_parser.set_defaults(
+        func=lambda args: asyncio.create_task(download_file(args))
     )
 
     # invocation subcommands
