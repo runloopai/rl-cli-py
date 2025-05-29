@@ -190,10 +190,22 @@ async def get_async_exec(args) -> None:
     print(f"execution={devbox.model_dump_json(indent=4)}")
 
 
-async def snapshot_devbox(args) -> None:
+async def snapshot_devbox_sync(args) -> None:
     assert args.devbox_id is not None
     snapshot = await runloop_api_client().devboxes.snapshot_disk(args.devbox_id)
     print(f"snapshot={snapshot.model_dump_json(indent=4)}")
+
+
+async def snapshot_devbox_async(args) -> None:
+    assert args.devbox_id is not None
+    snapshot = await runloop_api_client().devboxes.snapshot_disk_async(args.devbox_id)
+    print(f"snapshot={snapshot.model_dump_json(indent=4)}")
+
+
+async def get_snapshot_status(args) -> None:
+    assert args.snapshot_id is not None
+    status = await runloop_api_client().devboxes.disk_snapshots.query_status(args.snapshot_id)
+    print(f"snapshot_status={status.model_dump_json(indent=4)}")
 
 
 async def list_snapshots(args) -> None:
@@ -257,7 +269,7 @@ async def devbox_exec(args) -> None:
 
 async def devbox_exec_async(args) -> None:
     assert args.id is not None
-    result = await runloop_api_client().devboxes.execute_sync(
+    result = await runloop_api_client().devboxes.execute_async(
         id=args.id, command=args.exec_command
     )
     print("exec_result=", result)
@@ -653,13 +665,33 @@ async def run():
     )
 
     devbox_snapshot_create_parser = devbox_snapshot_subparsers.add_parser(
-        "create", help="Create a snapshot of a running devbox"
+        "create", help="Create a snapshot of a running devbox (synchronous)"
     )
     devbox_snapshot_create_parser.add_argument(
         "--devbox_id", required=True, help="ID of the devbox to snapshot"
     )
     devbox_snapshot_create_parser.set_defaults(
-        func=lambda args: asyncio.create_task(snapshot_devbox(args))
+        func=lambda args: asyncio.create_task(snapshot_devbox_sync(args))
+    )
+
+    devbox_snapshot_create_async_parser = devbox_snapshot_subparsers.add_parser(
+        "create_async", help="Create a snapshot of a running devbox (asynchronous)"
+    )
+    devbox_snapshot_create_async_parser.add_argument(
+        "--devbox_id", required=True, help="ID of the devbox to snapshot"
+    )
+    devbox_snapshot_create_async_parser.set_defaults(
+        func=lambda args: asyncio.create_task(snapshot_devbox_async(args))
+    )
+
+    devbox_snapshot_status_parser = devbox_snapshot_subparsers.add_parser(
+        "status", help="Get the status of a snapshot operation"
+    )
+    devbox_snapshot_status_parser.add_argument(
+        "--snapshot_id", required=True, help="ID of the snapshot to check"
+    )
+    devbox_snapshot_status_parser.set_defaults(
+        func=lambda args: asyncio.create_task(get_snapshot_status(args))
     )
 
     devbox_snapshot_list_parser = devbox_snapshot_subparsers.add_parser(

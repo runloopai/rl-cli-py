@@ -363,7 +363,7 @@ requires-dist = [
     { name = "pip-tools", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "runloop-api-client", specifier = "==0.32.0" },
+    { name = "runloop-api-client", specifier = "==0.34.0" },
 ]
 provides-extras = ["dev"]
 
@@ -394,7 +394,7 @@ wheels = [
 
 [[package]]
 name = "runloop-api-client"
-version = "0.32.0"
+version = "0.34.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -404,9 +404,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/23/da/4d13de09e8090a5a84edb86b837eb3630766f9dc6a0efcc38989d42215a4/runloop_api_client-0.32.0.tar.gz", hash = "sha256:735a967d96b5c3e8a08b89072722adcbe2b10ed904268d3f45785b7cfd5420d1", size = 195611 }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/c9/c014a7cf6b4aba627fce757bfbe8b035532f1bf63984dadc58d0753a7de4/runloop_api_client-0.34.0.tar.gz", hash = "sha256:7baf1315c47923584fe6370726e70abd26fc51124469e2c71a77e443d284f180", size = 197493 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/22/2aa82315662626b217bb51b037fde764b5e6a92eea28082b92d8bff8f080/runloop_api_client-0.32.0-py3-none-any.whl", hash = "sha256:37f156f711b1aa4cef86c0f779cc27afa43ce3d3f6b1976d7f68667466317a6d", size = 217312 },
+    { url = "https://files.pythonhosted.org/packages/d2/18/ae552ec2cd299fe45415bf578b359830797cb5ab1c3716d275b52154aab5/runloop_api_client-0.34.0-py3-none-any.whl", hash = "sha256:32f32e97e90d954c98b5ead9dc4e4a24c63ef8836e3a18cc2b8de24508d67cbc", size = 215393 },
 ]
 
 [[package]]
