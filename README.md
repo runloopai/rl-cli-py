@@ -29,6 +29,7 @@ A command line utility for interacting with runloop APIs.
     - [View Blueprint Logs](#view-blueprint-logs)
   - [Snapshot Commands](#snapshot-commands)
     - [Create Snapshot](#create-snapshot)
+    - [Check Snapshot Status](#check-snapshot-status)
     - [List Snapshots](#list-snapshots)
   - [Invocation Commands](#invocation-commands)
     - [Get Invocation Details](#get-invocation-details)
@@ -157,9 +158,14 @@ rl blueprint create --name=<blueprint_name> --system_setup_commands "<setup comm
 
 ## Snapshot
 
-### Create a Snapshot of devbox
+### Create a Snapshot of devbox (asynchronous)
 ```commandline
 rl devbox snapshot create --devbox_id=<devbox_id>
+```
+
+### Check Snapshot Status
+```commandline
+rl devbox snapshot status --snapshot_id=<snapshot_id>
 ```
 
 # Command Reference
@@ -320,9 +326,14 @@ rl blueprint logs --id <blueprint_id>
 
 ## Snapshot Commands
 
-### Create Snapshot
+### Create Snapshot (Asynchronous)
 ```commandline
 rl devbox snapshot create --devbox_id <devbox_id>
+```
+
+### Get Snapshot Status
+```commandline
+rl devbox snapshot status --snapshot_id <snapshot_id>
 ```
 
 ### List Snapshots
