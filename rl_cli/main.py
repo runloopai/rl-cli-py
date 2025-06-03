@@ -17,6 +17,9 @@ from runloop_api_client.types.shared_params import (
 )
 from runloop_api_client.types.shared_params.launch_parameters import UserParameters
 
+# Import version from package
+from rl_cli import __version__
+
 
 def base_url() -> str:
     env: str | None = os.getenv("RUNLOOP_ENV")
@@ -520,6 +523,13 @@ async def download_file(args) -> None:
 
 async def run():
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
+
+    # Add version argument
+    parser.add_argument(
+        "--version", 
+        action="version", 
+        version=f"rl-cli {__version__}"
+    )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
