@@ -21,10 +21,8 @@ from runloop_api_client.types.shared_params.launch_parameters import UserParamet
 def base_url() -> str:
     env: str | None = os.getenv("RUNLOOP_ENV")
     if env and env.lower() == "dev":
-        print("Using dev environment")
         return "https://api.runloop.pro"
     else:
-        print("Using prod environment")
         return "https://api.runloop.ai"
 
 
@@ -941,6 +939,21 @@ async def run():
     if hasattr(args, "func"):
         if not os.getenv("RUNLOOP_API_KEY"):
             raise RuntimeError("API key not found, RUNLOOP_API_KEY must be set")
+        
+        # Print environment message unless it's SSH config-only which should not pollute output
+        should_suppress_env_message = (
+            args.command == "devbox" and 
+            hasattr(args, "subcommand") and args.subcommand == "ssh" and
+            hasattr(args, "config_only") and args.config_only
+        )
+        
+        if not should_suppress_env_message:
+            env = os.getenv("RUNLOOP_ENV")
+            if env and env.lower() == "dev":
+                print("Using dev environment", file=sys.stderr)
+            else:
+                print("Using prod environment", file=sys.stderr)
+        
         await args.func(args)
     else:
         parser.print_help()
