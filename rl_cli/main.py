@@ -10,6 +10,7 @@ import sys
 import signal
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
+from runloop_api_client._types import Query
 from runloop_api_client.types.shared_params import (
     AfterIdle,
     LaunchParameters,
@@ -127,11 +128,16 @@ async def create_devbox(args) -> None:
 
 
 async def list_devboxes(args) -> None:
-    devboxes = await runloop_api_client().devboxes.list()
+    extra_query: Query | None = None
+    if args.status is not None:
+        extra_query = {"status": args.status}
+    paginator = await runloop_api_client().devboxes.list(
+        extra_query=extra_query,
+        limit=args.limit,
+    )
     # Print all devboxes matching the status filter.
-    async for devbox in devboxes:
-        if args.status is None or devbox.status == args.status:
-            print(f"devbox={devbox.model_dump_json(indent=4)}")
+    async for devbox in paginator:
+        print(f"devbox={devbox.model_dump_json(indent=4)}")
 
 
 async def list_functions(args) -> None:
@@ -199,7 +205,9 @@ async def snapshot_devbox(args) -> None:
 
 async def get_snapshot_status(args) -> None:
     assert args.snapshot_id is not None
-    status = await runloop_api_client().devboxes.disk_snapshots.query_status(args.snapshot_id)
+    status = await runloop_api_client().devboxes.disk_snapshots.query_status(
+        args.snapshot_id
+    )
     print(f"snapshot_status={status.model_dump_json(indent=4)}")
 
 
@@ -523,11 +531,7 @@ async def run():
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
     # Add version argument
-    parser.add_argument(
-        "--version", 
-        action="version", 
-        version=f"rl-cli {__version__}"
-    )
+    parser.add_argument("--version", action="version", version=f"rl-cli {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -622,6 +626,12 @@ async def run():
             "failure",
             "shutdown",
         ],
+    )
+    devbox_list_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Limit the number of devboxes to return.",
+        default=20,
     )
 
     devbox_get_parser = devbox_subparsers.add_parser("get", help="Get devbox")
@@ -949,21 +959,23 @@ async def run():
     if hasattr(args, "func"):
         if not os.getenv("RUNLOOP_API_KEY"):
             raise RuntimeError("API key not found, RUNLOOP_API_KEY must be set")
-        
+
         # Print environment message unless it's SSH config-only which should not pollute output
         should_suppress_env_message = (
-            args.command == "devbox" and 
-            hasattr(args, "subcommand") and args.subcommand == "ssh" and
-            hasattr(args, "config_only") and args.config_only
+            args.command == "devbox"
+            and hasattr(args, "subcommand")
+            and args.subcommand == "ssh"
+            and hasattr(args, "config_only")
+            and args.config_only
         )
-        
+
         if not should_suppress_env_message:
             env = os.getenv("RUNLOOP_ENV")
             if env and env.lower() == "dev":
                 print("Using dev environment", file=sys.stderr)
             else:
                 print("Using prod environment", file=sys.stderr)
-        
+
         await args.func(args)
     else:
         parser.print_help()
