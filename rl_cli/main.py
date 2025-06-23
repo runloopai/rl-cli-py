@@ -8,6 +8,7 @@ import subprocess
 import shlex
 import sys
 import signal
+import time
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
 from runloop_api_client._types import Query
@@ -302,6 +303,13 @@ async def devbox_ssh(args) -> None:
     if args.id is None:
         raise ValueError("The 'id' argument is required and was not provided.")
 
+    # Wait for devbox to be ready unless --no-wait is specified
+    if not args.no_wait:
+        print(f"Waiting for devbox {args.id} to be ready...")
+        if not await wait_for_devbox_ready(args.id, args.timeout, args.poll_interval):
+            print(f"Devbox {args.id} is not ready. Please try again later.")
+            return
+
     devbox = await runloop_api_client().devboxes.retrieve(args.id)
     user = (
         devbox.launch_parameters.user_parameters.username
@@ -527,6 +535,54 @@ async def download_file(args) -> None:
     print(f"File downloaded to {args.output_path}")
 
 
+async def wait_for_devbox_ready(devbox_id: str, timeout_seconds: int = 180, poll_interval_seconds: int = 3) -> bool:
+    """
+    Wait for a devbox to be ready (status "running") with polling.
+    
+    Args:
+        devbox_id: The ID of the devbox to wait for
+        timeout_seconds: Maximum time to wait in seconds (default: 3 minutes)
+        poll_interval_seconds: How often to poll in seconds (default: 3 seconds)
+    
+    Returns:
+        True if devbox is ready, False if timeout exceeded
+    """
+    start_time = time.time()
+    
+    while True:
+        try:
+            devbox = await runloop_api_client().devboxes.retrieve(devbox_id)
+            
+            if devbox.status == "running":
+                print(f"Devbox {devbox_id} is ready!")
+                return True
+            elif devbox.status == "failure":
+                print(f"Devbox {devbox_id} failed to start (status: {devbox.status})")
+                return False
+            elif devbox.status in ["shutdown", "suspended"]:
+                print(f"Devbox {devbox_id} is not running (status: {devbox.status})")
+                return False
+            else:
+                elapsed = time.time() - start_time
+                remaining = timeout_seconds - elapsed
+                print(f"Devbox {devbox_id} is still {devbox.status}... (elapsed: {elapsed:.0f}s, remaining: {remaining:.0f}s)")
+                
+                if elapsed >= timeout_seconds:
+                    print(f"Timeout waiting for devbox {devbox_id} to be ready after {timeout_seconds} seconds")
+                    return False
+                
+                await asyncio.sleep(poll_interval_seconds)
+                
+        except Exception as e:
+            elapsed = time.time() - start_time
+            if elapsed >= timeout_seconds:
+                print(f"Timeout waiting for devbox {devbox_id} to be ready after {timeout_seconds} seconds (error: {e})")
+                return False
+            
+            print(f"Error checking devbox status: {e}, retrying in {poll_interval_seconds} seconds...")
+            await asyncio.sleep(poll_interval_seconds)
+
+
 async def run():
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
 
@@ -658,6 +714,24 @@ async def run():
         action="store_true",
         default=False,
         help="Only print ~/.ssh/config lines",
+    )
+    devbox_ssh_parser.add_argument(
+        "--no-wait",
+        action="store_true",
+        default=False,
+        help="Skip waiting for the devbox to be ready before SSHing",
+    )
+    devbox_ssh_parser.add_argument(
+        "--timeout",
+        type=int,
+        default=180,
+        help="Timeout in seconds for waiting for the devbox to be ready",
+    )
+    devbox_ssh_parser.add_argument(
+        "--poll-interval",
+        type=int,
+        default=3,
+        help="Interval in seconds between polling checks for the devbox status",
     )
     devbox_ssh_parser.set_defaults(
         func=lambda args: asyncio.create_task(devbox_ssh(args))
