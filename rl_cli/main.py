@@ -124,7 +124,6 @@ async def create_devbox(args) -> None:
             architecture=args.architecture,
             user_parameters=user_parameters,
         ),
-        prebuilt=args.prebuilt,
     )
     print(f"create devbox={devbox.model_dump_json(indent=4)}")
 
@@ -644,11 +643,6 @@ async def run():
         type=str,
         choices=["shutdown", "suspend"],
         help="Action to take when devbox becomes idle",
-    )
-    devbox_create_parser.add_argument(
-        "--prebuilt",
-        type=str,
-        help="Use a non standard prebuilt image.",
     )
     devbox_create_parser.add_argument(
         "--resources",
