@@ -1,8 +1,6 @@
 # rl-cli
 A command line utility for interacting with runloop APIs.
 
-**NOTE: This project is still in early alpha release**
-
 # Table of Contents
 - [Setup](#setup)
   - [Installation](#installation)
