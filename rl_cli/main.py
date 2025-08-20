@@ -59,7 +59,7 @@ def should_check_for_updates() -> bool:
 
 def get_latest_version() -> str | None:
     try:
-        with urllib.request.urlopen('https://pypi.org/pypi/rl-cli/json', timeout=5) as response:
+        with urllib.request.urlopen('https://pypi.org/pypi/rl-cli/json', timeout=2) as response:
             data = json.loads(response.read())
             return data['info']['version']
     except (urllib.error.URLError, json.JSONDecodeError, KeyError, TimeoutError):
