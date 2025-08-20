@@ -9,6 +9,9 @@ import shlex
 import sys
 import signal
 import time
+import urllib.request
+import urllib.error
+from pathlib import Path
 
 from runloop_api_client import NOT_GIVEN, AsyncRunloop, NotGiven
 from runloop_api_client._types import Query
@@ -36,6 +39,55 @@ def ssh_url() -> str:
         return "ssh.runloop.pro:443"
     else:
         return "ssh.runloop.ai:443"
+
+
+def get_cache_dir() -> Path:
+    return Path.home() / '.cache' / 'rl-cli'
+
+
+def should_check_for_updates() -> bool:
+    cache_file = get_cache_dir() / 'last_update_check'
+    if not cache_file.exists():
+        return True
+    
+    try:
+        last_check = datetime.datetime.fromtimestamp(cache_file.stat().st_mtime)
+        return (datetime.datetime.now() - last_check).days >= 1
+    except OSError:
+        return True
+
+
+def get_latest_version() -> str | None:
+    try:
+        with urllib.request.urlopen('https://pypi.org/pypi/rl-cli/json', timeout=2) as response:
+            data = json.loads(response.read())
+            return data['info']['version']
+    except (urllib.error.URLError, json.JSONDecodeError, KeyError, TimeoutError):
+        return None
+
+
+def update_check_cache():
+    cache_dir = get_cache_dir()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / 'last_update_check'
+    cache_file.touch()
+
+
+def check_for_updates():
+    if not should_check_for_updates():
+        return
+    
+    latest_version = get_latest_version()
+    if latest_version is None:
+        update_check_cache()
+        return
+    
+    current_version = __version__
+    if latest_version != current_version:
+        print(f"Update available: rl-cli {latest_version} (current: {current_version})", file=sys.stderr)
+        print("Run 'uv tool upgrade rl-cli' to update", file=sys.stderr)
+    
+    update_check_cache()
 
 
 @functools.cache
@@ -152,6 +204,22 @@ async def list_functions(args) -> None:
         print(f"project={function.model_dump_json(indent=4)}")
         for function in functions["devboxes"]
     ]
+
+
+async def update_check_command(args) -> None:
+    latest_version = get_latest_version()
+    if latest_version is None:
+        print("Unable to check for updates")
+        return
+    
+    current_version = __version__
+    if latest_version != current_version:
+        print(f"Update available: rl-cli {latest_version} (current: {current_version})")
+        print("Run 'uv tool upgrade rl-cli' to update")
+    else:
+        print(f"rl-cli is up to date (version {current_version})")
+    
+    update_check_cache()
 
 
 async def list_blueprints(args) -> None:
@@ -1040,6 +1108,12 @@ async def run():
 
     parser.add_argument("--repo", type=str, help="Repo name.")
     parser.add_argument("--owner", type=str, help="Repo owner.")
+    
+    # Hidden update check command for internal testing
+    update_check_parser = subparsers.add_parser("_update_check", add_help=False)
+    update_check_parser.set_defaults(
+        func=lambda args: asyncio.create_task(update_check_command(args))
+    )
 
     args = parser.parse_args()
     if hasattr(args, "func"):
@@ -1061,6 +1135,13 @@ async def run():
                 print("Using dev environment", file=sys.stderr)
             else:
                 print("Using prod environment", file=sys.stderr)
+
+        # Check for updates in background (max once per day)
+        try:
+            check_for_updates()
+        except Exception:
+            # Silently ignore update check failures
+            pass
 
         await args.func(args)
     else:
