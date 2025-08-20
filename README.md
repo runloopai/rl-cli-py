@@ -5,7 +5,7 @@ A command line utility for interacting with runloop APIs.
 
 # Table of Contents
 - [Setup](#setup)
-  - [Install using pipx](#install-using-pipx)
+  - [Installation](#installation)
   - [For developers](#for-developers)
 - [Quick Reference](#quick-reference)
   - [Devbox](#devbox)
@@ -36,12 +36,10 @@ A command line utility for interacting with runloop APIs.
 
 # Setup
 
-## Install using pipx
+## Installation
 
-```
-➜  ~  pipx install rl-cli
-  installed package rl-cli 0.0.1, installed using Python 3.12.6
-  These apps are now globally available
+```bash
+uv tool install rl-cli
 ```
 
 ## For developers
