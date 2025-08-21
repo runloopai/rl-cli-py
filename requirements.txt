@@ -10,9 +10,6 @@ certifi==2024.12.14
     # via
     #   httpcore
     #   httpx
-    #   requests
-charset-normalizer==3.4.1
-    # via requests
 distro==1.9.0
     # via runloop-api-client
 h11==0.14.0
@@ -20,21 +17,16 @@ h11==0.14.0
 httpcore==1.0.7
     # via httpx
 httpx==0.28.1
-    # via
-    #   rl-cli (pyproject.toml)
-    #   runloop-api-client
+    # via runloop-api-client
 idna==3.10
     # via
     #   anyio
     #   httpx
-    #   requests
 pydantic==2.10.5
     # via runloop-api-client
 pydantic-core==2.27.2
     # via pydantic
-requests==2.32.3
-    # via rl-cli (pyproject.toml)
-runloop-api-client==0.34.0
+runloop-api-client==0.55.2
     # via rl-cli (pyproject.toml)
 sniffio==1.3.1
     # via
@@ -45,5 +37,3 @@ typing-extensions==4.12.2
     #   pydantic
     #   pydantic-core
     #   runloop-api-client
-urllib3==2.3.0
-    # via requests
