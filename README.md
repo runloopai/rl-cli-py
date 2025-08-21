@@ -1,10 +1,13 @@
 # rl-cli
+
 A command line utility for interacting with runloop APIs.
 
 # Table of Contents
+
 - [Setup](#setup)
   - [Installation](#installation)
   - [For developers](#for-developers)
+  - [Running Tests](#running-tests)
 - [Quick Reference](#quick-reference)
   - [Devbox](#devbox)
   - [Blueprint](#blueprint)
@@ -41,6 +44,7 @@ uv tool install rl-cli
 ```
 
 ## For developers
+
 ```commandline
 # Clone the repo
 mkdir -p ~/source/ && cd ~/source/
@@ -58,6 +62,32 @@ flit install --symlink --python </path/to/system/python>
 pip install rl-cli
 ```
 
+## Running Tests
+
+The project uses pytest for testing. The test suite includes unit tests for core functionality, network operations, and CLI commands.
+
+```bash
+# Install dev dependencies with uv
+uv pip install -e ".[dev]"
+
+# Run all tests with verbose output
+pytest tests/ -v
+
+# Run a specific test file
+pytest tests/test_cli.py -v
+
+# Run a specific test function
+pytest tests/test_cli.py::test_devbox_list -v
+
+# Run tests with coverage report
+pytest tests/ -v --cov=rl_cli
+
+# Run tests in parallel (faster)
+pytest tests/ -v -n auto
+```
+
+The test suite is also automatically run on GitHub Actions for every pull request and push to main branch.
+
 ```
 # In a new terminal
 export RUNLOOP_API_KEY=<your-api-key>
@@ -69,6 +99,7 @@ rl --help
 ## Devbox
 
 ### Create a devbox and run a single command
+
 ```commandline
 rl devbox create --env_vars HELLO=world --entrypoint 'echo $HELLO'
 >
@@ -85,6 +116,7 @@ create devbox={
 ```
 
 ### Observe logs
+
 ```commandline
 rl devbox logs --id dbx_2xMDUOsKMiZBYKsvSRtMA
 >
@@ -97,6 +129,7 @@ rl devbox logs --id dbx_2xMDUOsKMiZBYKsvSRtMA
 ```
 
 ### Check the devbox status
+
 ```commandline
 rl devbox get --id dbx_2ws7IOtjxnJgLsBIpU9nn
 >   
@@ -113,8 +146,8 @@ devbox={
 }
 ```
 
-
 ### Use scp to copy files to/from the devbox
+
 ```commandline
 To use the SCP command:
    rl devbox scp local_file.txt :remote_file.txt --id <devbox_id>
@@ -124,6 +157,7 @@ To copy a file from the devbox to your local machine:
 ```
 
 ### Use rsync to copy files to/from the devbox
+
 ```commandline
 To use the rsync command:
    rl devbox rsync local_file.txt :remote_file.txt --id <devbox_id>
@@ -138,6 +172,7 @@ To use the rsync command:
 ```
 
 ### Use port forwarding to create a tunnel to remote devbox
+
 ```commandline
 To use the tunnel command:
    rl devbox tunnel --id <devbox_id> <local_port>:<remote_port>
@@ -148,6 +183,7 @@ Note that this is a blocking command that will block for duration of tunnel.
 ## Blueprint
 
 ### Create a Blueprint with setup commands
+
 ```commandline
 rl blueprint create --name=<blueprint_name> --system_setup_commands "<setup commands>"
 ```
@@ -155,11 +191,13 @@ rl blueprint create --name=<blueprint_name> --system_setup_commands "<setup comm
 ## Snapshot
 
 ### Create a Snapshot of devbox (asynchronous)
+
 ```commandline
 rl devbox snapshot create --devbox_id=<devbox_id>
 ```
 
 ### Check Snapshot Status
+
 ```commandline
 rl devbox snapshot status --snapshot_id=<snapshot_id>
 ```
@@ -169,6 +207,7 @@ rl devbox snapshot status --snapshot_id=<snapshot_id>
 ## Devbox Commands
 
 ### Create a Devbox
+
 ```commandline
 rl devbox create [options]
 
@@ -187,6 +226,7 @@ Options:
 ```
 
 ### List Devboxes
+
 ```commandline
 rl devbox list [options]
 
@@ -195,6 +235,7 @@ Options:
 ```
 
 ### Get Devbox Details
+
 ```commandline
 rl devbox get --id <devbox_id>
 ```
@@ -202,11 +243,13 @@ rl devbox get --id <devbox_id>
 ### Execute Commands
 
 #### Synchronous Execution
+
 ```commandline
 rl devbox exec --id <devbox_id> --command "<command>"
 ```
 
 #### Asynchronous Execution
+
 ```commandline
 # Start async execution
 rl devbox exec_async --id <devbox_id> --command "<command>"
@@ -216,6 +259,7 @@ rl devbox get_async --id <devbox_id> --execution_id <execution_id>
 ```
 
 ### SSH Access
+
 ```commandline
 # SSH into devbox
 rl devbox ssh --id <devbox_id>
@@ -227,6 +271,7 @@ rl devbox ssh --id <devbox_id> --config-only
 ### File Transfer
 
 #### SCP
+
 ```commandline
 # Copy to devbox
 rl devbox scp local_file.txt :remote_file.txt --id <devbox_id>
@@ -239,6 +284,7 @@ rl devbox scp --scp-options "-r" local_dir :remote_dir --id <devbox_id>
 ```
 
 #### Rsync
+
 ```commandline
 # Copy to devbox
 rl devbox rsync local_dir :remote_dir --id <devbox_id>
@@ -251,6 +297,7 @@ rl devbox rsync --rsync-options "-avz" local_dir :remote_dir --id <devbox_id>
 ```
 
 ### Port Forwarding
+
 ```commandline
 rl devbox tunnel --id <devbox_id> <local_port>:<remote_port>
 ```
@@ -258,21 +305,25 @@ rl devbox tunnel --id <devbox_id> <local_port>:<remote_port>
 ### Devbox Management
 
 #### Suspend Devbox
+
 ```commandline
 rl devbox suspend --id <devbox_id>
 ```
 
 #### Resume Devbox
+
 ```commandline
 rl devbox resume --id <devbox_id>
 ```
 
 #### Shutdown Devbox
+
 ```commandline
 rl devbox shutdown --id <devbox_id>
 ```
 
 #### View Logs
+
 ```commandline
 rl devbox logs --id <devbox_id>
 ```
@@ -280,6 +331,7 @@ rl devbox logs --id <devbox_id>
 ## Blueprint Commands
 
 ### Create Blueprint
+
 ```commandline
 rl blueprint create [options]
 
@@ -293,6 +345,7 @@ Options:
 ```
 
 ### Preview Blueprint
+
 ```commandline
 rl blueprint preview [options]
 
@@ -303,6 +356,7 @@ Options:
 ```
 
 ### List Blueprints
+
 ```commandline
 rl blueprint list [options]
 
@@ -311,11 +365,13 @@ Options:
 ```
 
 ### Get Blueprint Details
+
 ```commandline
 rl blueprint get --id <blueprint_id>
 ```
 
 ### View Blueprint Logs
+
 ```commandline
 rl blueprint logs --id <blueprint_id>
 ```
@@ -323,16 +379,19 @@ rl blueprint logs --id <blueprint_id>
 ## Snapshot Commands
 
 ### Create Snapshot (Asynchronous)
+
 ```commandline
 rl devbox snapshot create --devbox_id <devbox_id>
 ```
 
 ### Get Snapshot Status
+
 ```commandline
 rl devbox snapshot status --snapshot_id <snapshot_id>
 ```
 
 ### List Snapshots
+
 ```commandline
 rl devbox snapshot list
 ```
@@ -340,6 +399,7 @@ rl devbox snapshot list
 ## Invocation Commands
 
 ### Get Invocation Details
+
 ```commandline
 rl invocation get --id <invocation_id>
 ```
