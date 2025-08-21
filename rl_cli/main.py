@@ -12,7 +12,7 @@ from .utils import (
     _parse_env_arg,
     _parse_code_mounts,
 )
-from .commands import devbox, blueprint, invocation
+from .commands import devbox, blueprint, invocation, object
 
 def check_for_updates():
     """Check for available updates."""
@@ -197,6 +197,69 @@ def setup_invocation_parser(subparsers):
 
     # ... Add other invocation subcommands similarly ...
 
+def setup_object_parser(subparsers):
+    """Setup the object command parser."""
+    parser = subparsers.add_parser("object", help="Manage objects")
+    subparsers = parser.add_subparsers(dest="subcommand")
+
+    # List
+    list_parser = subparsers.add_parser("list", help="List objects")
+    list_parser.set_defaults(func=lambda args: asyncio.create_task(object.list_objects(args)))
+    list_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Max results",
+        default=20,
+    )
+    list_parser.add_argument(
+        "--starting_after",
+        type=str,
+        help="Starting point for pagination",
+    )
+    list_parser.add_argument(
+        "--name",
+        type=str,
+        help="Filter by name (partial match supported)",
+    )
+    list_parser.add_argument(
+        "--content_type",
+        type=str,
+        help="Filter by content type",
+    )
+    list_parser.add_argument(
+        "--state",
+        type=str,
+        help="Filter by state (UPLOADING, READ_ONLY, DELETED)",
+        choices=["UPLOADING", "READ_ONLY", "DELETED"],
+    )
+    list_parser.add_argument(
+        "--search",
+        type=str,
+        help="Search by object ID or name",
+    )
+    list_parser.add_argument(
+        "--public",
+        action="store_true",
+        help="List public objects only",
+    )
+
+    # Get
+    get_parser = subparsers.add_parser("get", help="Get object")
+    get_parser.set_defaults(func=lambda args: asyncio.create_task(object.get(args)))
+    get_parser.add_argument("--id", required=True, help="Object ID")
+
+    # Download
+    download_parser = subparsers.add_parser("download", help="Download object to local file")
+    download_parser.set_defaults(func=lambda args: asyncio.create_task(object.download(args)))
+    download_parser.add_argument("--id", required=True, help="Object ID")
+    download_parser.add_argument("--path", required=True, help="Local path to save the file")
+    download_parser.add_argument(
+        "--duration_seconds",
+        type=int,
+        help="Duration in seconds for the presigned URL validity (default: 3600)",
+        default=3600,
+    )
+
 async def run():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
@@ -208,6 +271,7 @@ async def run():
     setup_devbox_parser(subparsers)
     setup_blueprint_parser(subparsers)
     setup_invocation_parser(subparsers)
+    setup_object_parser(subparsers)
 
     # Hidden update check command
     update_check_parser = subparsers.add_parser("_update_check", add_help=False)
