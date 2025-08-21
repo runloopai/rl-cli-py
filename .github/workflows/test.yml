@@ -1,12 +1,7 @@
 name: Tests
 
 on:
-  push:
-    branches:
-      - '**'  # Run on all branches
   pull_request:
-    branches:
-      - '**'  # Run on PRs targeting any branch
   workflow_dispatch:  # Enable manual trigger
     inputs:
       debug_enabled:
