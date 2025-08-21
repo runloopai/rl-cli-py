@@ -260,6 +260,16 @@ def setup_object_parser(subparsers):
         default=3600,
     )
 
+    # Upload
+    upload_parser = subparsers.add_parser("upload", help="Upload a file as an object")
+    upload_parser.set_defaults(func=lambda args: asyncio.create_task(object.upload(args)))
+    upload_parser.add_argument("--path", required=True, help="Path to the file to upload")
+    upload_parser.add_argument("--name", required=True, help="Name for the object")
+    upload_parser.add_argument(
+        "--content_type",
+        help="Content type of the file (default: application/octet-stream)",
+    )
+
 async def run():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")
