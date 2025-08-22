@@ -270,6 +270,11 @@ def setup_object_parser(subparsers):
         help="Content type of the file (default: application/octet-stream)",
     )
 
+    # Delete
+    delete_parser = subparsers.add_parser("delete", help="Delete an object (irreversible)")
+    delete_parser.set_defaults(func=lambda args: asyncio.create_task(object.delete(args)))
+    delete_parser.add_argument("--id", required=True, help="Object ID to delete")
+
 async def run():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Perform various devbox operations.")

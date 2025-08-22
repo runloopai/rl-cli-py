@@ -155,6 +155,23 @@ async def download(args) -> None:
 
     print(f"Downloaded object to {args.path}")
 
+async def delete(args) -> None:
+    """Delete an object.
+    
+    This action is irreversible and will remove the object and all its metadata.
+    """
+    assert args.id is not None
+    
+    try:
+        # Delete the object
+        deleted_object = await runloop_api_client().objects.delete(args.id)
+        print(f"Successfully deleted object {args.id}")
+        
+        # Print object details
+        print(f"Deleted object details: {deleted_object.model_dump_json(indent=4)}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to delete object: {str(e)}")
+
 async def upload(args) -> None:
     """Upload a file as an object.
     
