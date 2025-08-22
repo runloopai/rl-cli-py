@@ -34,6 +34,8 @@ A command line utility for interacting with runloop APIs.
     - [List Snapshots](#list-snapshots)
   - [Invocation Commands](#invocation-commands)
     - [Get Invocation Details](#get-invocation-details)
+  - [Object Commands](#object-commands)
+    - [Download an Object](#download-an-object)
 
 # Setup
 
@@ -403,3 +405,25 @@ rl devbox snapshot list
 ```commandline
 rl invocation get --id <invocation_id>
 ```
+
+## Object Commands
+
+### Download an Object
+
+Download an object to your local filesystem:
+
+```bash
+# Simple download
+rl object download --id obj_123 --path ./myfile.zip
+
+# Download and extract archive
+rl object download --id obj_123 --path ./myfile.zip --extract
+
+# Supported archive formats:
+# - .zip: Standard ZIP archives
+# - .tar.gz, .tgz: Gzipped tar archives
+# - .zst: Zstandard compressed files
+# - .tar.zst: Zstandard compressed tar archives
+```
+
+The `--extract` flag will automatically extract supported archive formats after download. The extraction directory will be created using the archive name without the extension.

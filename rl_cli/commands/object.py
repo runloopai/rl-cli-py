@@ -1,9 +1,16 @@
 """Object command group implementation."""
 import os
 import io
+import shutil
+import tempfile
+import zipfile
+import tarfile
 import aiohttp
 import mimetypes
+import zstandard
+import inspect
 from typing import Optional, Literal
+from pathlib import Path
 from tabulate import tabulate
 from ..utils import runloop_api_client
 
@@ -28,6 +35,9 @@ CONTENT_TYPE_MAP = {
     '.gz': 'application/gzip',
     '.tar': 'application/x-tar',
     '.tgz': 'application/x-tar+gzip',
+    '.tar.gz': 'application/x-tar+gzip',  # Alias for .tgz
+    '.zst': 'application/zstd',
+    '.tar.zst': 'application/x-tar+zstd',
     
     # Images
     '.jpg': 'image/jpeg',
@@ -37,6 +47,71 @@ CONTENT_TYPE_MAP = {
     '.svg': 'image/svg+xml',
     '.webp': 'image/webp',
 }
+
+# Create reverse mapping from MIME types to preferred extensions
+MIME_TYPE_MAP = {mime_type: ext for ext, mime_type in CONTENT_TYPE_MAP.items()}
+# Prefer .txt for text/plain
+MIME_TYPE_MAP['text/plain'] = '.txt'
+
+def is_archive(file_path: str) -> bool:
+    """Check if file is a supported archive type."""
+    return file_path.lower().endswith(('.zip', '.tar.gz', '.tgz', '.zst', '.tar.zst'))
+
+def safe_extract_tar(tar_ref, extract_dir: str) -> None:
+    """Safely extract a tar archive to a directory."""
+    def is_within_directory(directory, target):
+        abs_directory = os.path.abspath(directory)
+        abs_target = os.path.abspath(target)
+        prefix = os.path.commonprefix([abs_directory, abs_target])
+        return prefix == abs_directory
+
+    for member in tar_ref.getmembers():
+        member_path = os.path.join(extract_dir, member.name)
+        if not is_within_directory(extract_dir, member_path):
+            raise RuntimeError("Attempted path traversal in tar file")
+    tar_ref.extractall(extract_dir, filter='data')
+
+def extract_archive(archive_path: str, extract_dir: str) -> None:
+    """Extract archive to specified directory."""
+    path_lower = archive_path.lower()
+    
+    # Handle ZIP files
+    if path_lower.endswith('.zip'):
+        with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_dir)
+    
+    # Handle tar.gz and tgz files
+    elif path_lower.endswith(('.tar.gz', '.tgz')):
+        with tarfile.open(archive_path, 'r:gz') as tar_ref:
+            safe_extract_tar(tar_ref, extract_dir)
+    
+    # Handle tar.zst files
+    elif path_lower.endswith('.tar.zst'):
+        # First decompress to a temporary tar file
+        temp_tar = archive_path + '.tar'
+        try:
+            dctx = zstandard.ZstdDecompressor()
+            with open(archive_path, 'rb') as compressed:
+                with open(temp_tar, 'wb') as decompressed:
+                    dctx.copy_stream(compressed, decompressed)
+            
+            # Now extract the tar file
+            with tarfile.open(temp_tar, 'r:') as tar:
+                safe_extract_tar(tar, extract_dir)
+        finally:
+            # Clean up temporary tar file
+            if os.path.exists(temp_tar):
+                os.unlink(temp_tar)
+    
+    # Handle single-file zst compression
+    elif path_lower.endswith('.zst'):
+        dctx = zstandard.ZstdDecompressor()
+        output_name = os.path.splitext(os.path.basename(archive_path))[0]
+        output_path = os.path.join(extract_dir, output_name)
+        os.makedirs(extract_dir, exist_ok=True)  # Create the extraction directory
+        with open(archive_path, 'rb') as compressed:
+            with open(output_path, 'wb') as decompressed:
+                dctx.copy_stream(compressed, decompressed)
 
 def detect_content_type(file_path: str) -> str:
     """Detect content type based on file extension.
@@ -117,19 +192,74 @@ async def get(args) -> None:
     print(f"object={object.model_dump_json(indent=4)}")
 
 async def download(args) -> None:
-    """Download an object to a local file."""
+    """Download an object to a local file and optionally extract it."""
     assert args.id is not None
     assert args.path is not None
 
+    # Ensure we pick up the patched client in tests and latest env
+    try:
+        runloop_api_client.cache_clear()
+    except Exception:
+        pass
+
+    # Get the object metadata first
+    object = await runloop_api_client().objects.retrieve(args.id)
+    
     # Get the download URL
     duration_seconds = args.duration_seconds if hasattr(args, "duration_seconds") else 3600
-    download_url_response = await runloop_api_client().objects.generate_download_url(
+    download_url_response = await runloop_api_client().objects.download(
         args.id, duration_seconds=duration_seconds
     )
     download_url = download_url_response.download_url
 
-    # Create the directory if it doesn't exist
-    os.makedirs(os.path.dirname(os.path.abspath(args.path)), exist_ok=True)
+    # Determine the download path
+    if getattr(args, 'extract', False):
+        # When extracting, download to a temporary file first with correct extension
+        # Prefer extension from object name
+        ext = None
+        name = object.name
+        if inspect.isawaitable(name):
+            name = await name
+        if isinstance(name, str) and name:
+            name_lower = name.lower()
+            if name_lower.endswith(('.tar.gz', '.tar.zst')):
+                ext = '.' + '.'.join(name_lower.split('.')[-2:])
+            else:
+                ext = os.path.splitext(name)[1]
+        
+        # Fallback: derive from content type
+        if not ext:
+            content_type = object.content_type
+            if inspect.isawaitable(content_type):
+                content_type = await content_type
+            ext = MIME_TYPE_MAP.get(content_type)
+        
+        # Decide filename: use object.name only for archives
+        archive_exts = ('.zip', '.tar.gz', '.tgz', '.zst', '.tar.zst')
+        is_archive_ext = False
+        base_name_candidate = None
+        if isinstance(name, str) and name:
+            base_name_candidate = os.path.basename(name)
+            name_lower = name.lower()
+            is_archive_ext = name_lower.endswith(archive_exts)
+        else:
+            # fall back to ext check only
+            if ext in archive_exts:
+                is_archive_ext = True
+        
+        if is_archive_ext and base_name_candidate:
+            temp_basename = base_name_candidate
+        else:
+            # id-based temp name, ensure ext appended if present
+            temp_basename = f"rl_cli_download_{args.id}"
+            if ext and not temp_basename.lower().endswith(ext.lower()):
+                temp_basename += ext
+        
+        download_path = os.path.join(tempfile.gettempdir(), temp_basename)
+    else:
+        # When not extracting, use the specified path
+        download_path = os.path.abspath(args.path)
+        os.makedirs(os.path.dirname(download_path), exist_ok=True)
 
     # Download the file
     async with aiohttp.ClientSession() as session:
@@ -141,7 +271,7 @@ async def download(args) -> None:
         total_size = int(response.headers.get('content-length', 0))
         
         # Open file and write chunks
-        with open(args.path, 'wb') as f:
+        with open(download_path, 'wb') as f:
             bytes_downloaded = 0
             async for chunk in response.content.iter_chunked(8192):
                 f.write(chunk)
@@ -153,7 +283,35 @@ async def download(args) -> None:
             if total_size:
                 print()  # New line after progress
 
-    print(f"Downloaded object to {args.path}")
+    # Print download path unless we're going to extract it successfully
+    if not getattr(args, 'extract', False) or not is_archive(download_path):
+        print(f"Downloaded object to {download_path}")
+
+    # Handle extraction if requested
+    if getattr(args, 'extract', False):
+        if not is_archive(download_path):
+            print("Warning: --extract specified but file is not a supported archive type")
+            return
+
+        # When --extract is used, args.path specifies the target extraction directory
+        extract_dir = os.path.abspath(args.path)
+        
+        # Create fresh extraction directory
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)
+        os.makedirs(extract_dir)
+
+        try:
+            print(f"Extracting archive to {extract_dir}...")
+            extract_archive(download_path, extract_dir)
+            print(f"Successfully extracted to {extract_dir}")
+            # Clean up the downloaded archive since we've extracted it
+            os.unlink(download_path)
+        except Exception as e:
+            print(f"Failed to extract archive: {str(e)}")
+            # Clean up extraction directory on failure
+            shutil.rmtree(extract_dir)
+            raise
 
 async def delete(args) -> None:
     """Delete an object.

@@ -3,6 +3,9 @@
 import json
 import os
 import tempfile
+import zipfile
+import tarfile
+import zstandard
 from unittest.mock import AsyncMock, patch, mock_open
 import pytest
 from rl_cli.main import run
@@ -16,6 +19,7 @@ class MockObject:
         self.state = state
         self.size_bytes = size_bytes
         self.upload_url = "https://example.com/upload"
+        self.download_url = "https://example.com/download"
 
     def model_dump_json(self, indent=None):
         return json.dumps({
@@ -79,6 +83,392 @@ async def test_object_upload_success(capsys):
     finally:
         # Clean up temporary file
         os.unlink(temp_path)
+
+@pytest.mark.asyncio
+async def test_object_download_with_extract_zip(tmp_path, capsys):
+    """Test downloading and extracting a zip file."""
+    # Create a test zip file
+    test_zip = tmp_path / "test.zip"
+    with zipfile.ZipFile(test_zip, 'w') as zf:
+        zf.writestr('test.txt', 'Hello World')
+        zf.writestr('subdir/test2.txt', 'Hello Again')
+
+    # Mock API client and responses
+    mock_api_client = AsyncMock()
+    mock_api_client._platform = 'test-platform'
+    mock_api_client.bearer_token = 'test-api-key'
+    
+    # Mock objects resource
+    mock_objects = AsyncMock()
+    mock_objects.download = AsyncMock(
+        return_value=AsyncMock(download_url="https://example.com/download")
+    )
+    mock_objects.retrieve = AsyncMock()
+    mock_objects.retrieve.return_value = MockObject(name="test.zip", content_type="application/zip")
+    mock_api_client.objects = mock_objects
+
+    # Mock aiohttp response
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.headers = {'content-length': str(os.path.getsize(test_zip))}
+    
+    # Create async iterator for file content
+    async def mock_iter_chunked(chunk_size):
+        with open(test_zip, 'rb') as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+    
+    mock_response.content.iter_chunked = mock_iter_chunked
+
+    # Set up test environment
+    extract_path = tmp_path / "extract_here"  # Directory to extract into
+
+    with patch('aiohttp.ClientSession') as mock_session, \
+         patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client):
+        
+        # Configure session mock
+        session_instance = AsyncMock()
+        session_instance.get.return_value = mock_response
+        mock_session.return_value.__aenter__.return_value = session_instance
+
+        # Run command
+        with patch('sys.argv', [
+            'rl', 'object', 'download',
+            '--id', 'test-id',
+            '--path', str(extract_path),
+            '--extract'
+        ]), patch.dict('os.environ', {
+            'RUNLOOP_API_KEY': 'test-api-key',
+            'RUNLOOP_ENV': 'dev'
+        }):
+            await run()
+
+    # Verify output
+    captured = capsys.readouterr()
+    assert f"Extracting archive to {extract_path}" in captured.out
+    assert f"Successfully extracted to {extract_path}" in captured.out
+
+    # Verify extracted files
+    assert (extract_path / 'test.txt').is_file()
+    assert (extract_path / 'subdir' / 'test2.txt').is_file()
+    with open(extract_path / 'test.txt') as f:
+        assert f.read() == 'Hello World'
+
+@pytest.mark.asyncio
+async def test_object_download_with_extract_zst(tmp_path, capsys):
+    """Test downloading and extracting a zst file."""
+    # Create a test zst file
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("Hello World")
+    test_zst = tmp_path / "test.txt.zst"
+    
+    cctx = zstandard.ZstdCompressor()
+    with open(test_file, 'rb') as src:
+        with open(test_zst, 'wb') as dst:
+            cctx.copy_stream(src, dst)
+
+    # Mock API client and responses
+    mock_api_client = AsyncMock()
+    mock_api_client._platform = 'test-platform'
+    mock_api_client.bearer_token = 'test-api-key'
+    
+    # Mock objects resource
+    mock_objects = AsyncMock()
+    mock_objects.download = AsyncMock(
+        return_value=AsyncMock(download_url="https://example.com/download")
+    )
+    mock_objects.retrieve = AsyncMock()
+    mock_objects.retrieve.return_value = MockObject(name="test.txt.zst", content_type="application/zstd")
+    mock_api_client.objects = mock_objects
+
+    # Mock aiohttp response
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.headers = {'content-length': str(os.path.getsize(test_zst))}
+    
+    # Create async iterator for file content
+    async def mock_iter_chunked(chunk_size):
+        with open(test_zst, 'rb') as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+    
+    mock_response.content.iter_chunked = mock_iter_chunked
+
+    # Set up test environment
+    extract_path = tmp_path / "extract_here"  # Directory to extract into
+
+    with patch('aiohttp.ClientSession') as mock_session, \
+         patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client):
+        
+        # Configure session mock
+        session_instance = AsyncMock()
+        session_instance.get.return_value = mock_response
+        mock_session.return_value.__aenter__.return_value = session_instance
+
+        # Run command
+        with patch('sys.argv', [
+            'rl', 'object', 'download',
+            '--id', 'test-id',
+            '--path', str(extract_path),
+            '--extract'
+        ]), patch.dict('os.environ', {
+            'RUNLOOP_API_KEY': 'test-api-key',
+            'RUNLOOP_ENV': 'dev'
+        }):
+            await run()
+
+    # Verify output
+    captured = capsys.readouterr()
+    assert f"Extracting archive to {extract_path}" in captured.out
+    assert f"Successfully extracted to {extract_path}" in captured.out
+
+    # Verify extracted file
+    assert (extract_path / 'test.txt').is_file()
+    with open(extract_path / 'test.txt') as f:
+        assert f.read() == 'Hello World'
+
+@pytest.mark.asyncio
+async def test_object_download_with_extract_tar_zst(tmp_path, capsys):
+    """Test downloading and extracting a tar.zst file."""
+    # Create test files
+    test_file = tmp_path / 'test.txt'
+    test_file.write_text('Hello World')
+    subdir = tmp_path / 'subdir'
+    subdir.mkdir()
+    test_file2 = subdir / 'test2.txt'
+    test_file2.write_text('Hello Again')
+
+    # Create tar archive
+    tar_path = tmp_path / "test.tar"
+    with tarfile.open(tar_path, 'w') as tf:
+        tf.add(test_file, arcname='test.txt')
+        tf.add(test_file2, arcname='subdir/test2.txt')
+
+    # Compress with zstd
+    test_tar_zst = tmp_path / "test.tar.zst"
+    cctx = zstandard.ZstdCompressor()
+    with open(tar_path, 'rb') as src:
+        with open(test_tar_zst, 'wb') as dst:
+            cctx.copy_stream(src, dst)
+
+    # Mock API client and responses
+    mock_api_client = AsyncMock()
+    mock_api_client._platform = 'test-platform'
+    mock_api_client.bearer_token = 'test-api-key'
+    
+    # Mock objects resource
+    mock_objects = AsyncMock()
+    mock_objects.download = AsyncMock(
+        return_value=AsyncMock(download_url="https://example.com/download")
+    )
+    mock_objects.retrieve = AsyncMock()
+    mock_objects.retrieve.return_value = MockObject(name="test.tar.zst", content_type="application/x-tar+zstd")
+    mock_api_client.objects = mock_objects
+
+    # Mock aiohttp response
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.headers = {'content-length': str(os.path.getsize(test_tar_zst))}
+    
+    # Create async iterator for file content
+    async def mock_iter_chunked(chunk_size):
+        with open(test_tar_zst, 'rb') as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+    
+    mock_response.content.iter_chunked = mock_iter_chunked
+
+    # Set up test environment
+    extract_path = tmp_path / "extract_here"  # Directory to extract into
+
+    with patch('aiohttp.ClientSession') as mock_session, \
+         patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client):
+        
+        # Configure session mock
+        session_instance = AsyncMock()
+        session_instance.get.return_value = mock_response
+        mock_session.return_value.__aenter__.return_value = session_instance
+
+        # Run command
+        with patch('sys.argv', [
+            'rl', 'object', 'download',
+            '--id', 'test-id',
+            '--path', str(extract_path),
+            '--extract'
+        ]), patch.dict('os.environ', {
+            'RUNLOOP_API_KEY': 'test-api-key',
+            'RUNLOOP_ENV': 'dev'
+        }):
+            await run()
+
+    # Verify output
+    captured = capsys.readouterr()
+    assert f"Extracting archive to {extract_path}" in captured.out
+    assert f"Successfully extracted to {extract_path}" in captured.out
+
+    # Verify extracted files
+    assert (extract_path / 'test.txt').is_file()
+    assert (extract_path / 'subdir' / 'test2.txt').is_file()
+    with open(extract_path / 'test.txt') as f:
+        assert f.read() == 'Hello World'
+
+@pytest.mark.asyncio
+async def test_object_download_with_extract_targz(tmp_path, capsys):
+    """Test downloading and extracting a tar.gz file."""
+    # Create test tar.gz with same structure
+    test_targz = tmp_path / "test.tar.gz"
+    with tarfile.open(test_targz, 'w:gz') as tf:
+        # Add test files
+        test_file = tmp_path / 'test.txt'
+        test_file.write_text('Hello World')
+        tf.add(test_file, arcname='test.txt')
+        
+        # Add subdirectory file
+        subdir = tmp_path / 'subdir'
+        subdir.mkdir()
+        test_file2 = subdir / 'test2.txt'
+        test_file2.write_text('Hello Again')
+        tf.add(test_file2, arcname='subdir/test2.txt')
+
+    # Mock API client and responses
+    mock_api_client = AsyncMock()
+    mock_api_client._platform = 'test-platform'
+    mock_api_client.bearer_token = 'test-api-key'
+    
+    # Mock objects resource
+    mock_objects = AsyncMock()
+    mock_objects.download = AsyncMock(
+        return_value=AsyncMock(download_url="https://example.com/download")
+    )
+    mock_objects.retrieve = AsyncMock()
+    mock_objects.retrieve.return_value = MockObject(name="test.tar.gz", content_type="application/x-tar+gzip")
+    mock_api_client.objects = mock_objects
+
+    # Mock aiohttp response
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.headers = {'content-length': str(os.path.getsize(test_targz))}
+    
+    # Create async iterator for file content
+    async def mock_iter_chunked(chunk_size):
+        with open(test_targz, 'rb') as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+    
+    mock_response.content.iter_chunked = mock_iter_chunked
+
+    # Set up test environment
+    extract_path = tmp_path / "extract_here"  # Directory to extract into
+
+    with patch('aiohttp.ClientSession') as mock_session, \
+         patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client):
+        
+        # Configure session mock
+        session_instance = AsyncMock()
+        session_instance.get.return_value = mock_response
+        mock_session.return_value.__aenter__.return_value = session_instance
+
+        # Run command
+        with patch('sys.argv', [
+            'rl', 'object', 'download',
+            '--id', 'test-id',
+            '--path', str(extract_path),
+            '--extract'
+        ]), patch.dict('os.environ', {
+            'RUNLOOP_API_KEY': 'test-api-key',
+            'RUNLOOP_ENV': 'dev'
+        }):
+            await run()
+
+    # Verify output
+    captured = capsys.readouterr()
+    assert f"Extracting archive to {extract_path}" in captured.out
+    assert f"Successfully extracted to {extract_path}" in captured.out
+
+    # Verify extracted files
+    assert (extract_path / 'test.txt').is_file()
+    assert (extract_path / 'subdir' / 'test2.txt').is_file()
+    with open(extract_path / 'test.txt') as f:
+        assert f.read() == 'Hello World'
+
+@pytest.mark.asyncio
+async def test_object_download_extract_unsupported(tmp_path, capsys):
+    """Test attempting to extract an unsupported file type."""
+    # Mock API client and responses
+    mock_api_client = AsyncMock()
+    mock_api_client._platform = 'test-platform'
+    mock_api_client.bearer_token = 'test-api-key'
+    
+    # Mock objects resource
+    mock_objects = AsyncMock()
+    mock_objects.download = AsyncMock(
+        return_value=AsyncMock(download_url="https://example.com/download")
+    )
+    mock_objects.retrieve = AsyncMock()
+    mock_objects.retrieve.return_value = MockObject(name="test.txt", content_type="text/plain")
+    mock_api_client.objects = mock_objects
+
+    # Create a test file
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("Hello World")
+
+    # Mock aiohttp response
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.headers = {'content-length': str(os.path.getsize(test_file))}
+    
+    # Create async iterator for file content
+    async def mock_iter_chunked(chunk_size):
+        with open(test_file, 'rb') as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+    
+    mock_response.content.iter_chunked = mock_iter_chunked
+
+    # Set up test environment
+    target_path = tmp_path / "download.txt"
+
+    with patch('aiohttp.ClientSession') as mock_session, \
+         patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client):
+        
+        # Configure session mock
+        session_instance = AsyncMock()
+        session_instance.get.return_value = mock_response
+        mock_session.return_value.__aenter__.return_value = session_instance
+
+        # Run command
+        with patch('sys.argv', [
+            'rl', 'object', 'download',
+            '--id', 'test-id',
+            '--path', str(target_path),
+            '--extract'
+        ]), patch.dict('os.environ', {
+            'RUNLOOP_API_KEY': 'test-api-key',
+            'RUNLOOP_ENV': 'dev'
+        }):
+            await run()
+
+    # Verify output
+    captured = capsys.readouterr()
+    # When extracting, we use a temp file with the correct extension
+    temp_path = os.path.join(tempfile.gettempdir(), "rl_cli_download_test-id.txt")
+    assert f"Downloaded object to {temp_path}" in captured.out
+    assert "Warning: --extract specified but file is not a supported archive type" in captured.out
 
 @pytest.mark.asyncio
 async def test_object_upload_file_not_found(capsys):

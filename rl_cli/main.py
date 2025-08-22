@@ -253,6 +253,7 @@ def setup_object_parser(subparsers):
     download_parser.set_defaults(func=lambda args: asyncio.create_task(object.download(args)))
     download_parser.add_argument("--id", required=True, help="Object ID")
     download_parser.add_argument("--path", required=True, help="Local path to save the file")
+    download_parser.add_argument("--extract", action="store_true", help="Extract downloaded archive after download (supports .zip, .tar.gz, .tgz, .zst, .tar.zst)")
     download_parser.add_argument(
         "--duration_seconds",
         type=int,
