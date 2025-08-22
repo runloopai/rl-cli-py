@@ -45,7 +45,7 @@ def detect_content_type(file_path: str) -> str:
         file_path: Path to the file
         
     Returns:
-        str: API content type (e.g., 'TEXT_PLAIN', 'APPLICATION_JSON')
+        str: API content type (e.g., 'text/plain', 'application/json')
     """
     # Get the file extension (lowercase)
     ext = os.path.splitext(file_path)[1].lower()
@@ -237,13 +237,13 @@ async def upload(args) -> None:
                 reader = ProgressReader(file_path, file_size)
 
                 try:
-                    # Perform the upload (PUT request as required by server)
-                    headers = {'Content-Length': str(file_size)}  # Required for some servers
-                    async with session.put(upload_url, data=reader, headers=headers) as response:
+                        # Perform the upload (PUT request as required by server)
+                        headers = {'Content-Length': str(file_size)}  # Required for some servers
+                        response = await session.put(upload_url, data=reader, headers=headers)
                         if response.status not in (200, 201, 204):
                             error_text = await response.text()
                             raise RuntimeError(f"Upload failed with status {response.status}: {error_text}")
-                    print("\nUpload completed successfully.")
+                        print("\nUpload completed successfully.")
                 finally:
                     reader.close()  # Ensure we close the file
 

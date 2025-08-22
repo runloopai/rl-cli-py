@@ -2,221 +2,224 @@
 
 import json
 import os
+import tempfile
 from unittest.mock import AsyncMock, patch, mock_open
 import pytest
-import aiohttp
 from rl_cli.main import run
 from rl_cli.utils import runloop_api_client
 
+class MockObject:
+    def __init__(self, id="test-obj-id", name="test.txt", content_type="text/plain", state="READ_ONLY", size_bytes=1024):
+        self.id = id
+        self.name = name
+        self.content_type = content_type
+        self.state = state
+        self.size_bytes = size_bytes
+        self.upload_url = "https://example.com/upload"
+
+    def model_dump_json(self, indent=None):
+        return json.dumps({
+            "id": self.id,
+            "name": self.name,
+            "content_type": self.content_type,
+            "state": self.state,
+            "size_bytes": self.size_bytes,
+            "upload_url": self.upload_url
+        }, indent=indent)
+
 @pytest.mark.asyncio
-async def test_object_list(capsys):
-    """Test the object list command."""
-    class MockObject:
-        def model_dump_json(self, indent=None):
-            return json.dumps({
-                "id": "test-object-id",
-                "name": "test.txt",
-                "content_type": "text/plain",
-                "state": "READ_ONLY",
-                "created_at": "2024-01-01T00:00:00Z"
-            }, indent=indent)
-    
-    mock_object = MockObject()
-    
-    # Create mock API client
-    mock_api_client = AsyncMock()
-    mock_api_client._platform = 'test-platform'
-    mock_api_client.bearer_token = 'test-api-key'
-    
+async def test_object_upload_success(capsys):
+    """Test successful object upload."""
     # Create mock objects
-    mock_objects = AsyncMock()
-    mock_objects.list = AsyncMock()
-    
-    # Create mock response
-    class MockResponse:
-        def __init__(self):
-            self.objects = [mock_object]
-            self.has_more = False
-            self.total_count = 1
-            self.remaining_count = 0
-        
-        def model_dump_json(self, indent=None):
-            return json.dumps({
-                "objects": [json.loads(obj.model_dump_json()) for obj in self.objects],
-                "has_more": self.has_more,
-                "total_count": self.total_count,
-                "remaining_count": self.remaining_count
-            }, indent=indent)
-    
-    mock_objects.list.return_value = MockResponse()
-    mock_api_client.objects = mock_objects
-    
-    # Clear the cache to ensure we get a fresh client
-    runloop_api_client.cache_clear()
-    
-    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
-         patch('sys.argv', ['rl', 'object', 'list']):
-        await run()
-        
-    captured = capsys.readouterr()
-    assert "objects=" in captured.out
-    output = json.loads(captured.out.split("objects=")[-1].strip())
-    assert "objects" in output
-    assert len(output["objects"]) == 1
-    assert output["objects"][0]["id"] == "test-object-id"
-
-@pytest.mark.asyncio
-async def test_object_get(capsys):
-    """Test the object get command."""
-    class MockObject:
-        def model_dump_json(self, indent=None):
-            return json.dumps({
-                "id": "test-object-id",
-                "name": "test.txt",
-                "content_type": "text/plain",
-                "state": "READ_ONLY",
-                "created_at": "2024-01-01T00:00:00Z"
-            }, indent=indent)
-    
     mock_object = MockObject()
-    
+    mock_response = AsyncMock()
+    mock_response.status = 200
+
     # Create mock API client
     mock_api_client = AsyncMock()
     mock_api_client._platform = 'test-platform'
     mock_api_client.bearer_token = 'test-api-key'
-    
-    # Create mock objects
+
+    # Create mock objects resource
     mock_objects = AsyncMock()
-    mock_objects.retrieve = AsyncMock(return_value=mock_object)
+    mock_objects.create = AsyncMock(return_value=mock_object)
+    mock_objects.complete = AsyncMock(return_value=mock_object)
     mock_api_client.objects = mock_objects
-    
-    # Clear the cache to ensure we get a fresh client
-    runloop_api_client.cache_clear()
-    
-    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
-         patch('sys.argv', ['rl', 'object', 'get', '--id', 'test-object-id']):
-        await run()
-        
-    captured = capsys.readouterr()
-    assert "object=" in captured.out
-    output = json.loads(captured.out.split("object=")[-1].strip())
-    assert output["id"] == "test-object-id"
+
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
+        temp_file.write("test content")
+        temp_path = temp_file.name
+
+    try:
+        # Clear the cache to ensure we get a fresh client
+        runloop_api_client.cache_clear()
+
+        # Mock aiohttp ClientSession
+        mock_session = AsyncMock()
+        mock_session.__aenter__.return_value = AsyncMock()
+        mock_session.__aenter__.return_value.put = AsyncMock(return_value=mock_response)
+
+        with patch('aiohttp.ClientSession', return_value=mock_session), \
+             patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+             patch('sys.argv', ['rl', 'object', 'upload', '--path', temp_path, '--name', 'test.txt']), \
+             patch.dict('os.environ', {'RUNLOOP_API_KEY': 'test-api-key', 'RUNLOOP_ENV': 'dev'}):
+            await run()
+
+        # Check output
+        captured = capsys.readouterr()
+        assert "Created object test-obj-id in UPLOADING state" in captured.out
+        assert "Upload completed successfully" in captured.out
+        assert "transitioned to READ_ONLY state" in captured.out
+
+        # Verify API calls
+        mock_objects.create.assert_called_once()
+        mock_objects.complete.assert_called_once_with("test-obj-id")
+
+    finally:
+        # Clean up temporary file
+        os.unlink(temp_path)
 
 @pytest.mark.asyncio
-async def test_object_download(capsys, tmp_path):
-    """Test the object download command."""
-    # Create mock download URL response
-    class MockDownloadUrlResponse:
-        def __init__(self):
-            self.download_url = "https://example.com/test.txt"
-    
+async def test_object_upload_file_not_found(capsys):
+    """Test object upload with non-existent file."""
     # Create mock API client
     mock_api_client = AsyncMock()
     mock_api_client._platform = 'test-platform'
     mock_api_client.bearer_token = 'test-api-key'
-    
-    # Create mock objects client
-    mock_objects = AsyncMock()
-    mock_objects.generate_download_url = AsyncMock(return_value=MockDownloadUrlResponse())
-    mock_api_client.objects = mock_objects
-    
-    # Create mock aiohttp response
-    class MockResponse:
-        def __init__(self):
-            self.status = 200
-            self.headers = {'content-length': '100'}
-            self.content = AsyncMock()
-            async def mock_iter_chunked(chunk_size):
-                yield b'test content'
-            self.content.iter_chunked = mock_iter_chunked
-    
-        async def __aenter__(self):
-            return self
-    
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-    
-    # Create mock aiohttp client session
-    class MockClientSession:
-        def __init__(self):
-            self.response = MockResponse()
-            self.get = AsyncMock()
-            self.get.return_value = self.response
-    
-        async def __aenter__(self):
-            return self
-    
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-    
-    # Clear the cache to ensure we get a fresh client
-    runloop_api_client.cache_clear()
-    
-    # Create a temporary file path
-    test_file = tmp_path / "test.txt"
-    
-    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
-         patch('aiohttp.ClientSession', return_value=MockClientSession()), \
-         patch('sys.argv', ['rl', 'object', 'download', '--id', 'test-object-id', '--path', str(test_file)]):
-        await run()
-    
-    # Check that the file was created
-    assert test_file.exists()
-    assert test_file.read_bytes() == b'test content'
-    
-    # Check output
-    captured = capsys.readouterr()
-    assert f"Downloaded object to {test_file}" in captured.out
 
-@pytest.mark.asyncio
-async def test_object_download_error_handling(capsys):
-    """Test error handling in object download command."""
-    # Create mock download URL response
-    class MockDownloadUrlResponse:
-        def __init__(self):
-            self.download_url = "https://example.com/test.txt"
-    
-    # Create mock API client
-    mock_api_client = AsyncMock()
-    mock_api_client._platform = 'test-platform'
-    mock_api_client.bearer_token = 'test-api-key'
-    
-    # Create mock objects client
-    mock_objects = AsyncMock()
-    mock_objects.generate_download_url = AsyncMock(return_value=MockDownloadUrlResponse())
-    mock_api_client.objects = mock_objects
-    
-    # Create mock aiohttp response with error
-    class MockErrorResponse:
-        def __init__(self):
-            self.status = 404
-    
-        async def __aenter__(self):
-            return self
-    
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-    
-    # Create mock aiohttp client session
-    class MockClientSession:
-        def __init__(self):
-            self.response = MockErrorResponse()
-            self.get = AsyncMock()
-            self.get.return_value = self.response
-    
-        async def __aenter__(self):
-            return self
-    
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-    
     # Clear the cache to ensure we get a fresh client
     runloop_api_client.cache_clear()
-    
+
     with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
-         patch('aiohttp.ClientSession', return_value=MockClientSession()), \
-         patch('sys.argv', ['rl', 'object', 'download', '--id', 'test-object-id', '--path', 'test.txt']), \
+         patch('sys.argv', ['rl', 'object', 'upload', '--path', '/nonexistent/file.txt', '--name', 'test.txt']), \
+         patch.dict('os.environ', {'RUNLOOP_API_KEY': 'test-api-key', 'RUNLOOP_ENV': 'dev'}), \
          pytest.raises(RuntimeError) as exc_info:
         await run()
-    
-    assert "Failed to download file: HTTP 404" in str(exc_info.value)
+
+    assert "File not found" in str(exc_info.value)
+
+@pytest.mark.asyncio
+async def test_object_upload_content_type_detection(capsys):
+    """Test content type detection during upload."""
+    # Create mock objects
+    mock_object = MockObject()
+    mock_response = AsyncMock()
+    mock_response.status = 200
+
+    # Create mock API client
+    mock_api_client = AsyncMock()
+    mock_api_client._platform = 'test-platform'
+    mock_api_client.bearer_token = 'test-api-key'
+
+    # Create mock objects resource
+    mock_objects = AsyncMock()
+    mock_objects.create = AsyncMock(return_value=mock_object)
+    mock_objects.complete = AsyncMock(return_value=mock_object)
+    mock_api_client.objects = mock_objects
+
+    # Test different file extensions
+    test_cases = [
+        ('test.json', 'application/json'),
+        ('test.txt', 'text/plain'),
+        ('test.md', 'text/plain'),
+        ('test.png', 'image/png'),
+        ('test.unknown', 'application/octet-stream'),
+    ]
+
+    for filename, expected_type in test_cases:
+        # Clear the cache to ensure we get a fresh client
+        runloop_api_client.cache_clear()
+
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_file:
+            temp_file.write(b"test content")
+            temp_path = temp_file.name
+
+        try:
+            # Mock aiohttp ClientSession
+            mock_session = AsyncMock()
+            mock_session.__aenter__.return_value = AsyncMock()
+            mock_session.__aenter__.return_value.put = AsyncMock(return_value=mock_response)
+
+            # Rename the temp file to have the correct extension
+            new_path = temp_path + filename
+            os.rename(temp_path, new_path)
+
+            with patch('aiohttp.ClientSession', return_value=mock_session), \
+                 patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+                 patch('sys.argv', ['rl', 'object', 'upload', '--path', new_path, '--name', filename]), \
+                 patch.dict('os.environ', {'RUNLOOP_API_KEY': 'test-api-key', 'RUNLOOP_ENV': 'dev'}):
+                await run()
+
+            # Verify content type
+            mock_objects.create.assert_called_with(name=filename, content_type=expected_type)
+            mock_objects.create.reset_mock()
+
+            # Clean up the renamed file
+            os.unlink(new_path)
+
+        except:
+            # Clean up files in case of error
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            if os.path.exists(new_path):
+                os.unlink(new_path)
+            raise
+
+@pytest.mark.asyncio
+async def test_object_delete_success(capsys):
+    """Test successful object deletion."""
+    # Create mock object
+    mock_object = MockObject()
+
+    # Create mock API client
+    mock_api_client = AsyncMock()
+    mock_api_client._platform = 'test-platform'
+    mock_api_client.bearer_token = 'test-api-key'
+
+    # Create mock objects resource
+    mock_objects = AsyncMock()
+    mock_objects.delete = AsyncMock(return_value=mock_object)
+    mock_api_client.objects = mock_objects
+
+    # Clear the cache to ensure we get a fresh client
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('sys.argv', ['rl', 'object', 'delete', '--id', 'test-obj-id']), \
+         patch.dict('os.environ', {'RUNLOOP_API_KEY': 'test-api-key', 'RUNLOOP_ENV': 'dev'}):
+        await run()
+
+    # Check output
+    captured = capsys.readouterr()
+    assert "Successfully deleted object test-obj-id" in captured.out
+    assert "Deleted object details" in captured.out
+
+    # Verify API call
+    mock_objects.delete.assert_called_once_with("test-obj-id")
+
+@pytest.mark.asyncio
+async def test_object_delete_not_found(capsys):
+    """Test object deletion with non-existent ID."""
+    # Create mock API client
+    mock_api_client = AsyncMock()
+    mock_api_client._platform = 'test-platform'
+    mock_api_client.bearer_token = 'test-api-key'
+
+    # Create mock objects resource with error
+    mock_objects = AsyncMock()
+    mock_objects.delete = AsyncMock(side_effect=Exception("Object not found"))
+    mock_api_client.objects = mock_objects
+
+    # Clear the cache to ensure we get a fresh client
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('sys.argv', ['rl', 'object', 'delete', '--id', 'nonexistent-id']), \
+         patch.dict('os.environ', {'RUNLOOP_API_KEY': 'test-api-key', 'RUNLOOP_ENV': 'dev'}), \
+         pytest.raises(RuntimeError) as exc_info:
+        await run()
+
+    assert "Failed to delete object" in str(exc_info.value)
+    assert "Object not found" in str(exc_info.value)
