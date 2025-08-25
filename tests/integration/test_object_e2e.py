@@ -173,3 +173,142 @@ async def test_upload_various_types_and_cleanup(tmp_path: Path, capsys):
             with patch("sys.argv", argv):
                 await run()
 
+
+@pytest.mark.asyncio
+async def test_missing_api_key_fails_fast():
+    # Ensure key absent and any command fails fast before network calls
+    with patch.dict(os.environ, {"RUNLOOP_API_KEY": ""}, clear=False):
+        argv = ["rl", "object", "list"]
+        with patch("sys.argv", argv), pytest.raises(RuntimeError, match="API key not found"):
+            await run()
+
+
+@pytest.mark.asyncio
+async def test_upload_nonexistent_file_errors(tmp_path: Path):
+    # Require a key so we exercise the upload path (file check happens before network)
+    api_key = os.environ.get("RUNLOOP_API_KEY")
+    if not api_key:
+        pytest.fail("RUNLOOP_API_KEY is required for integration error tests.")
+
+    missing = tmp_path / "does_not_exist.txt"
+    argv = [
+        "rl",
+        "object",
+        "upload",
+        "--path",
+        str(missing),
+        "--name",
+        "missing.txt",
+    ]
+    with patch("sys.argv", argv), pytest.raises(RuntimeError, match="File not found"):
+        await run()
+
+
+@pytest.mark.asyncio
+async def test_download_extract_unsupported_for_plain_text(tmp_path: Path):
+    # Require a key for live API
+    api_key = os.environ.get("RUNLOOP_API_KEY")
+    if not api_key:
+        pytest.fail("RUNLOOP_API_KEY is required for integration error tests.")
+
+    # Create and upload a plain text file
+    src = _make_text(tmp_path / "plain.txt", "hello world")
+    obj_id = None
+    try:
+        up_argv = [
+            "rl",
+            "object",
+            "upload",
+            "--path",
+            str(src),
+            "--name",
+            "plain.txt",
+        ]
+        with patch("sys.argv", up_argv):
+            await run()
+
+        # Parse object id from stdout is handled in other test; we just need the id here
+        # So list and search by name to retrieve latest id
+        # For simplicity, call list and pick the first matching name
+        # (Assumes low contention in test env)
+        from rl_cli.utils import runloop_api_client
+
+        objs = await runloop_api_client().objects.list(limit=10)
+        for o in objs.objects:
+            if o.name == "plain.txt":
+                obj_id = o.id
+                break
+        assert obj_id, "failed to resolve uploaded object id"
+
+        # Attempt to download with --extract into a dir; should fail as not an archive
+        extract_dir = tmp_path / "extract_plain"
+        dl_argv = [
+            "rl",
+            "object",
+            "download",
+            "--id",
+            obj_id,
+            "--path",
+            str(extract_dir),
+            "--extract",
+        ]
+        with patch("sys.argv", dl_argv), pytest.raises(RuntimeError, match="not a supported archive type"):
+            await run()
+    finally:
+        if obj_id:
+            del_argv = ["rl", "object", "delete", "--id", obj_id]
+            with patch("sys.argv", del_argv):
+                await run()
+
+
+@pytest.mark.asyncio
+async def test_download_extract_bad_zst_magic(tmp_path: Path):
+    # Require a key for live API
+    api_key = os.environ.get("RUNLOOP_API_KEY")
+    if not api_key:
+        pytest.fail("RUNLOOP_API_KEY is required for integration error tests.")
+
+    # Create a file with .zst extension but no zstd compression
+    bad_zst = tmp_path / "fake.zst"
+    bad_zst.write_bytes(b"NOT_ZSTD")
+
+    obj_id = None
+    try:
+        up_argv = [
+            "rl",
+            "object",
+            "upload",
+            "--path",
+            str(bad_zst),
+            "--name",
+            "fake.zst",
+        ]
+        with patch("sys.argv", up_argv):
+            await run()
+
+        from rl_cli.utils import runloop_api_client
+        objs = await runloop_api_client().objects.list(limit=10)
+        for o in objs.objects:
+            if o.name == "fake.zst":
+                obj_id = o.id
+                break
+        assert obj_id, "failed to resolve uploaded object id"
+
+        extract_dir = tmp_path / "extract_bad_zst"
+        dl_argv = [
+            "rl",
+            "object",
+            "download",
+            "--id",
+            obj_id,
+            "--path",
+            str(extract_dir),
+            "--extract",
+        ]
+        with patch("sys.argv", dl_argv), pytest.raises(RuntimeError, match="zstd-compressed"):
+            await run()
+    finally:
+        if obj_id:
+            del_argv = ["rl", "object", "delete", "--id", obj_id]
+            with patch("sys.argv", del_argv):
+                await run()

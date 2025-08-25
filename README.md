@@ -56,7 +56,7 @@ cd rl-cli/
 # Setup the venv and dev tools
 python3 -m venv .venv && source .venv/bin/activate && pip install -r dev-requirements.txt
 
-# Install to your venv with flink
+# Install to your venv with flit
 # Use 'which python3' to find your system python
 flit install --symlink --python </path/to/system/python>
 
