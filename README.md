@@ -66,35 +66,50 @@ pip install rl-cli
 
 ## Running Tests
 
-The project uses pytest for testing. The test suite includes unit tests for core functionality, network operations, and CLI commands.
+The project uses pytest for testing. The test suite includes unit tests and an end-to-end integration test for object upload/download.
 
 ```bash
-# Install dev dependencies with uv
+# Install dev dependencies (choose one)
 uv pip install -e ".[dev]"
+# or
+pip install -e ".[dev]"
 
-# Run all tests with verbose output
-pytest tests/ -v
+# Run all tests except the integration tests
+pytest -q -k "not integration"
 
-# Run a specific test file
-pytest tests/test_cli.py -v
+# Run only unit tests in verbose mode (equivalent to excluding integration)
+pytest -v -k "not integration"
+
+# Run only the integration tests (requires an API key)
+RUNLOOP_API_KEY=<your-api-key> RUNLOOP_ENV=prod pytest -q tests/integration/test_object_e2e.py
+
+# Run a specific unit test file
+pytest -v tests/test_cli.py
 
 # Run a specific test function
-pytest tests/test_cli.py::test_devbox_list -v
+pytest -v tests/test_cli.py::test_devbox_list
 
-# Run tests with coverage report
-pytest tests/ -v --cov=rl_cli
+# Run tests with coverage
+pytest -v --cov=rl_cli
 
 # Run tests in parallel (faster)
-pytest tests/ -v -n auto
+pytest -v -n auto
 ```
 
-The test suite is also automatically run on GitHub Actions for every pull request and push to main branch.
+Notes:
 
-```
-# In a new terminal
+- The integration test in `tests/integration/test_object_e2e.py` exercises live upload/download. It requires `RUNLOOP_API_KEY` in the environment. Set `RUNLOOP_ENV` to `prod` (or `dev` if your key targets dev).
+- To run the full suite including integration, export your key once, then run pytest:
+
+```bash
 export RUNLOOP_API_KEY=<your-api-key>
-rl --help
+export RUNLOOP_ENV=prod
+pytest -q
 ```
+
+CI:
+
+- A GitHub Actions workflow runs the integration test using a secret API key. Ensure the repository secret is configured (see `.github/workflows/cli-integration.yml`).
 
 # Quick reference
 
