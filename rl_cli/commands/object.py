@@ -124,7 +124,11 @@ def detect_content_type(file_path: str) -> str:
     """
     # Get the file extension (lowercase)
     ext = os.path.splitext(file_path)[1].lower()
-    
+
+    # The API does not accept zstd-specific types for uploads. Treat as generic.
+    if ext in ('.zst', '.tar.zst'):
+        return 'application/octet-stream'
+
     # Check our custom mapping first
     if ext in CONTENT_TYPE_MAP:
         return CONTENT_TYPE_MAP[ext]
@@ -263,7 +267,11 @@ async def download(args) -> None:
 
     # Download the file
     async with aiohttp.ClientSession() as session:
-        response = await session.get(download_url)
+        try:
+            response = await session.get(download_url)
+        except aiohttp.ClientError as e:
+            raise RuntimeError(f"Network error during download: {str(e)}")
+        
         if response.status != 200:
             raise RuntimeError(f"Failed to download file: HTTP {response.status}")
         
@@ -271,27 +279,29 @@ async def download(args) -> None:
         total_size = int(response.headers.get('content-length', 0))
         
         # Open file and write chunks
-        with open(download_path, 'wb') as f:
-            bytes_downloaded = 0
-            async for chunk in response.content.iter_chunked(8192):
-                f.write(chunk)
-                bytes_downloaded += len(chunk)
+        try:
+            with open(download_path, 'wb') as f:
+                bytes_downloaded = 0
+                async for chunk in response.content.iter_chunked(8192):
+                    f.write(chunk)
+                    bytes_downloaded += len(chunk)
+                    if total_size:
+                        progress = (bytes_downloaded / total_size) * 100
+                        print(f"\rDownloading: {progress:.1f}%", end='', flush=True)
+                
                 if total_size:
-                    progress = (bytes_downloaded / total_size) * 100
-                    print(f"\rDownloading: {progress:.1f}%", end='', flush=True)
-            
-            if total_size:
-                print()  # New line after progress
+                    print()  # New line after progress
+        except OSError as e:
+            raise RuntimeError(f"Failed to write downloaded file: {str(e)}")
 
-    # Print download path unless we're going to extract it successfully
-    if not getattr(args, 'extract', False) or not is_archive(download_path):
+    # Print download path only when not extracting
+    if not getattr(args, 'extract', False):
         print(f"Downloaded object to {download_path}")
 
     # Handle extraction if requested
     if getattr(args, 'extract', False):
         if not is_archive(download_path):
-            print("Warning: --extract specified but file is not a supported archive type")
-            return
+            raise RuntimeError("--extract specified but file is not a supported archive type")
 
         # When --extract is used, args.path specifies the target extraction directory
         extract_dir = os.path.abspath(args.path)

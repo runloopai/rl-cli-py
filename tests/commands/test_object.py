@@ -461,14 +461,11 @@ async def test_object_download_extract_unsupported(tmp_path, capsys):
             'RUNLOOP_API_KEY': 'test-api-key',
             'RUNLOOP_ENV': 'dev'
         }):
-            await run()
+            with pytest.raises(RuntimeError) as excinfo:
+                await run()
 
-    # Verify output
-    captured = capsys.readouterr()
-    # When extracting, we use a temp file with the correct extension
-    temp_path = os.path.join(tempfile.gettempdir(), "rl_cli_download_test-id.txt")
-    assert f"Downloaded object to {temp_path}" in captured.out
-    assert "Warning: --extract specified but file is not a supported archive type" in captured.out
+    # Verify error raised for unsupported extraction
+    assert "not a supported archive type" in str(excinfo.value)
 
 @pytest.mark.asyncio
 async def test_object_upload_file_not_found(capsys):
@@ -515,6 +512,8 @@ async def test_object_upload_content_type_detection(capsys):
         ('test.md', 'text/plain'),
         ('test.png', 'image/png'),
         ('test.unknown', 'application/octet-stream'),
+        ('test.zst', 'application/octet-stream'),
+        ('test.tar.zst', 'application/octet-stream'),
     ]
 
     for filename, expected_type in test_cases:
