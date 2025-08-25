@@ -310,6 +310,7 @@ async def run():
         )
 
         if not should_suppress_env_message:
+            print(f"env: {os.environ}", file=sys.stderr)
             env = os.getenv("RUNLOOP_ENV")
             if env and env.lower() == "dev":
                 print("Using dev environment", file=sys.stderr)

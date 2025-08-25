@@ -363,6 +363,11 @@ async def delete(args) -> None:
     This action is irreversible and will remove the object and all its metadata.
     """
     assert args.id is not None
+    # Ensure latest env/key is used
+    try:
+        runloop_api_client.cache_clear()
+    except Exception:
+        pass
     
     try:
         # Delete the object
@@ -384,6 +389,11 @@ async def upload(args) -> None:
     """
     assert args.path is not None
     assert args.name is not None
+    # Ensure latest env/key is used
+    try:
+        runloop_api_client.cache_clear()
+    except Exception:
+        pass
 
     # Check if file exists and is accessible
     try:
