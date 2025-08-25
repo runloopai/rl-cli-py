@@ -6,6 +6,7 @@ import tempfile
 import zipfile
 import tarfile
 import aiohttp
+import sys
 import mimetypes
 import zstandard
 import inspect
@@ -54,8 +55,27 @@ MIME_TYPE_MAP = {mime_type: ext for ext, mime_type in CONTENT_TYPE_MAP.items()}
 MIME_TYPE_MAP['text/plain'] = '.txt'
 
 def is_archive(file_path: str) -> bool:
-    """Check if file is a supported archive type."""
+    """Check by extension if file is a supported archive type (heuristic)."""
     return file_path.lower().endswith(('.zip', '.tar.gz', '.tgz', '.zst', '.tar.zst'))
+
+def _has_zstd_magic(file_path: str) -> bool:
+    """Return True if file begins with zstd magic number."""
+    try:
+        with open(file_path, 'rb') as f:
+            head = f.read(4)
+        return head == b'\x28\xb5/\xfd'
+    except Exception:
+        return False
+
+def is_extractable(file_path: str) -> bool:
+    """Content-aware check whether an archive can be extracted by us."""
+    if zipfile.is_zipfile(file_path):
+        return True
+    if tarfile.is_tarfile(file_path):
+        return True
+    if _has_zstd_magic(file_path):
+        return True
+    return False
 
 def safe_extract_tar(tar_ref, extract_dir: str) -> None:
     """Safely extract a tar archive to a directory."""
@@ -74,6 +94,17 @@ def safe_extract_tar(tar_ref, extract_dir: str) -> None:
 def extract_archive(archive_path: str, extract_dir: str) -> None:
     """Extract archive to specified directory."""
     path_lower = archive_path.lower()
+
+    # Prefer content-based detection first
+    if zipfile.is_zipfile(archive_path):
+        with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_dir)
+        return
+
+    if tarfile.is_tarfile(archive_path):
+        with tarfile.open(archive_path, 'r:*') as tar_ref:
+            safe_extract_tar(tar_ref, extract_dir)
+        return
     
     # Handle ZIP files
     if path_lower.endswith('.zip'):
@@ -90,6 +121,8 @@ def extract_archive(archive_path: str, extract_dir: str) -> None:
         # First decompress to a temporary tar file
         temp_tar = archive_path + '.tar'
         try:
+            if not _has_zstd_magic(archive_path):
+                raise RuntimeError('File does not appear to be zstd-compressed')
             dctx = zstandard.ZstdDecompressor()
             with open(archive_path, 'rb') as compressed:
                 with open(temp_tar, 'wb') as decompressed:
@@ -109,6 +142,8 @@ def extract_archive(archive_path: str, extract_dir: str) -> None:
         output_name = os.path.splitext(os.path.basename(archive_path))[0]
         output_path = os.path.join(extract_dir, output_name)
         os.makedirs(extract_dir, exist_ok=True)  # Create the extraction directory
+        if not _has_zstd_magic(archive_path):
+            raise RuntimeError('File does not appear to be zstd-compressed')
         with open(archive_path, 'rb') as compressed:
             with open(output_path, 'wb') as decompressed:
                 dctx.copy_stream(compressed, decompressed)
@@ -125,7 +160,7 @@ def detect_content_type(file_path: str) -> str:
     # Get the file extension (lowercase)
     ext = os.path.splitext(file_path)[1].lower()
 
-    # The API does not accept zstd-specific types for uploads. Treat as generic.
+    # The API enum doesn't accept application/zstd; use generic for uploads
     if ext in ('.zst', '.tar.zst'):
         return 'application/octet-stream'
 
@@ -287,10 +322,10 @@ async def download(args) -> None:
                     bytes_downloaded += len(chunk)
                     if total_size:
                         progress = (bytes_downloaded / total_size) * 100
-                        print(f"\rDownloading: {progress:.1f}%", end='', flush=True)
+                        print(f"\rDownloading: {progress:.1f}%", end='', flush=True, file=sys.stderr)
                 
                 if total_size:
-                    print()  # New line after progress
+                    print(file=sys.stderr)  # New line after progress
         except OSError as e:
             raise RuntimeError(f"Failed to write downloaded file: {str(e)}")
 
@@ -318,7 +353,6 @@ async def download(args) -> None:
             # Clean up the downloaded archive since we've extracted it
             os.unlink(download_path)
         except Exception as e:
-            print(f"Failed to extract archive: {str(e)}")
             # Clean up extraction directory on failure
             shutil.rmtree(extract_dir)
             raise
@@ -383,7 +417,7 @@ async def upload(args) -> None:
             # Open and upload the file with progress tracking
             with open(file_path, 'rb') as f:
                 bytes_uploaded = 0
-                print(f"Uploading {args.path} ({file_size} bytes)...")
+                print(f"Uploading {args.path} ({file_size} bytes)...", file=sys.stderr)
 
                 # Create a progress tracking reader
                 class ProgressReader(io.BufferedReader):
@@ -397,7 +431,7 @@ async def upload(args) -> None:
                         if chunk:
                             self.bytes_read += len(chunk)
                             progress = (self.bytes_read / self.total_size) * 100
-                            print(f"\rProgress: {progress:.1f}%", end='', flush=True)
+                            print(f"\rProgress: {progress:.1f}%", end='', flush=True, file=sys.stderr)
                         return chunk
 
                 # Create a progress reader (close the original file as we'll reopen it)
