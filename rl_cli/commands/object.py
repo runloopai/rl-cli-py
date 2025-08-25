@@ -6,6 +6,7 @@ import tempfile
 import zipfile
 import tarfile
 import aiohttp
+import asyncio
 import sys
 import mimetypes
 import zstandard
@@ -14,6 +15,32 @@ from typing import Optional, Literal
 from pathlib import Path
 from tabulate import tabulate
 from ..utils import runloop_api_client
+# Retry settings (override via env if needed)
+RETRY_ATTEMPTS = int(os.getenv("RUNLOOP_RETRIES", "3"))
+RETRY_BASE_DELAY_SEC = float(os.getenv("RUNLOOP_RETRY_BASE_DELAY", "0.5"))
+
+def _is_transient_error(error: Exception) -> bool:
+    """Heuristic to classify transient server/network errors suitable for retry."""
+    if isinstance(error, aiohttp.ClientError):
+        return True
+    text = str(error)
+    if any(token in text for token in (" 500", " 502", " 503", " 504", "HTTP 5")):
+        return True
+    return False
+
+async def _retry_async(operation, *, attempts: int = RETRY_ATTEMPTS, base_delay_sec: float = RETRY_BASE_DELAY_SEC):
+    """Retry an awaitable factory on transient errors with exponential backoff."""
+    last_error = None
+    for attempt in range(attempts + 1):
+        try:
+            return await operation()
+        except Exception as e:  # noqa: BLE001
+            last_error = e
+            if attempt == attempts or not _is_transient_error(e):
+                break
+            await asyncio.sleep(base_delay_sec * (2 ** attempt))
+    raise last_error  # noqa: RSE102
+
 
 # Map common file extensions to MIME types
 CONTENT_TYPE_MAP = {
@@ -303,12 +330,20 @@ async def download(args) -> None:
     # Download the file
     async with aiohttp.ClientSession() as session:
         try:
-            response = await session.get(download_url)
+            response = await _retry_async(lambda: session.get(download_url))
         except aiohttp.ClientError as e:
             raise RuntimeError(f"Network error during download: {str(e)}")
         
         if response.status != 200:
-            raise RuntimeError(f"Failed to download file: HTTP {response.status}")
+            try:
+                error_text = await response.text()
+            except Exception:
+                error_text = ""
+            try:
+                response.close()
+            finally:
+                pass
+            raise RuntimeError(f"Failed to download file: HTTP {response.status} {error_text}")
         
         # Get total size for progress reporting
         total_size = int(response.headers.get('content-length', 0))
@@ -451,9 +486,16 @@ async def upload(args) -> None:
                 try:
                         # Perform the upload (PUT request as required by server)
                         headers = {'Content-Length': str(file_size)}  # Required for some servers
-                        response = await session.put(upload_url, data=reader, headers=headers)
+                        response = await _retry_async(lambda: session.put(upload_url, data=reader, headers=headers))
                         if response.status not in (200, 201, 204):
-                            error_text = await response.text()
+                            try:
+                                error_text = await response.text()
+                            except Exception:
+                                error_text = ""
+                            try:
+                                response.close()
+                            finally:
+                                pass
                             raise RuntimeError(f"Upload failed with status {response.status}: {error_text}")
                         print("\nUpload completed successfully.")
                 finally:
