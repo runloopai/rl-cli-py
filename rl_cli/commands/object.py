@@ -42,44 +42,49 @@ async def _retry_async(operation, *, attempts: int = RETRY_ATTEMPTS, base_delay_
     raise last_error  # noqa: RSE102
 
 
-# Map common file extensions to MIME types
+# Map common file extensions to new create API content types
+# Allowed values: "unspecified", "text", "binary", "gzip", "tar", "tgz"
 CONTENT_TYPE_MAP = {
-    # Text files
-    '.txt': 'text/plain',
-    '.html': 'text/html',
-    '.htm': 'text/html',
-    '.css': 'text/css',
-    '.js': 'text/javascript',
-    '.yaml': 'text/yaml',
-    '.yml': 'text/yaml',
-    '.csv': 'text/csv',
-    '.md': 'text/plain',  # Markdown files as plain text
-    
-    # Application files
-    '.json': 'application/json',
-    '.xml': 'application/xml',
-    '.pdf': 'application/pdf',
-    '.zip': 'application/zip',
-    '.gz': 'application/gzip',
-    '.tar': 'application/x-tar',
-    '.tgz': 'application/x-tar+gzip',
-    '.tar.gz': 'application/x-tar+gzip',  # Alias for .tgz
-    '.zst': 'application/zstd',
-    '.tar.zst': 'application/x-tar+zstd',
-    
-    # Images
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.svg': 'image/svg+xml',
-    '.webp': 'image/webp',
+    # Text-like
+    '.txt': 'text',
+    '.html': 'text',
+    '.htm': 'text',
+    '.css': 'text',
+    '.js': 'text',
+    '.yaml': 'text',
+    '.yml': 'text',
+    '.csv': 'text',
+    '.md': 'text',
+    '.json': 'text',
+    '.xml': 'text',
+
+    # Archives and compressed
+    '.gz': 'gzip',
+    '.tar': 'tar',
+    '.tgz': 'tgz',
+    '.tar.gz': 'tgz',
+
+    # Everything else treated as binary
+    '.zip': 'unspecified',
+    '.zst': 'unspecified',
+    '.tar.zst': 'unspecified',
+    '.pdf': 'unspecified',
+    '.jpg': 'unspecified',
+    '.jpeg': 'unspecified',
+    '.png': 'unspecified',
+    '.gif': 'unspecified',
+    '.svg': 'unspecified',
+    '.webp': 'unspecified',
 }
 
-# Create reverse mapping from MIME types to preferred extensions
-MIME_TYPE_MAP = {mime_type: ext for ext, mime_type in CONTENT_TYPE_MAP.items()}
-# Prefer .txt for text/plain
-MIME_TYPE_MAP['text/plain'] = '.txt'
+# Reverse mapping: service content_type -> preferred extension when we need a filename
+MIME_TYPE_MAP = {
+    'text': '.txt',
+    'binary': '',
+    'gzip': '.gz',
+    'tar': '.tar',
+    'tgz': '.tar.gz',
+}
 
 def is_archive(file_path: str) -> bool:
     """Check by extension if file is a supported archive type (heuristic)."""
@@ -182,21 +187,22 @@ def detect_content_type(file_path: str) -> str:
         file_path: Path to the file
         
     Returns:
-        str: API content type (e.g., 'text/plain', 'application/json')
+        str: Object create content type enum: 'unspecified' | 'text' | 'gzip' | 'tar' | 'tgz'
     """
-    # Get the file extension (lowercase)
-    ext = os.path.splitext(file_path)[1].lower()
+    # Handle multi-part archive extensions first
+    lower = file_path.lower()
+    if lower.endswith('.tar.gz') or lower.endswith('.tgz'):
+        return 'tgz'
 
-    # The API enum doesn't accept application/zstd; use generic for uploads
-    if ext in ('.zst', '.tar.zst'):
-        return 'application/octet-stream'
+    # Get the file extension (lowercase) for single-part extensions
+    ext = os.path.splitext(file_path)[1].lower()
 
     # Check our custom mapping first
     if ext in CONTENT_TYPE_MAP:
         return CONTENT_TYPE_MAP[ext]
     
-    # For unknown types, return application/octet-stream
-    return 'application/octet-stream'
+    # For unknown types, default to binary per new API enum
+    return 'unspecified'
 
 async def list_objects(args) -> None:
     """List objects with optional filtering."""
@@ -447,6 +453,9 @@ async def upload(args) -> None:
         # Step 1: Create the object (initial state: UPLOADING)
         # Detect content type from file extension if not provided
         content_type = args.content_type if hasattr(args, "content_type") and args.content_type else detect_content_type(args.path)
+        # Normalize to allowed enum values; default to 'unspecified' if not recognized
+        if content_type not in ("unspecified", "text", "gzip", "tar", "tgz"):
+            content_type = "unspecified"
         print(f"Using content type: {content_type}")
         
         create_response = await runloop_api_client().objects.create(
