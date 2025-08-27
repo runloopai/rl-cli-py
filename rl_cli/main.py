@@ -268,7 +268,8 @@ def setup_object_parser(subparsers):
     upload_parser.add_argument("--name", required=True, help="Name for the object")
     upload_parser.add_argument(
         "--content_type",
-        help="Content type of the file (default: application/octet-stream)",
+        help="Content type: unspecified|text|binary|gzip|tar|tgz (auto-detected if omitted)",
+        choices=["unspecified", "text", "binary", "gzip", "tar", "tgz"],
     )
 
     # Delete

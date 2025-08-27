@@ -778,7 +778,7 @@ requires-dist = [
     { name = "pytest-timeout", marker = "extra == 'dev'" },
     { name = "pytest-xdist", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "runloop-api-client", specifier = "==0.56.2" },
+    { name = "runloop-api-client", specifier = "==0.57.0" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "zstandard", specifier = ">=0.22.0" },
 ]
@@ -812,7 +812,7 @@ wheels = [
 
 [[package]]
 name = "runloop-api-client"
-version = "0.56.2"
+version = "0.57.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -822,9 +822,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/45/84/a14bb9c89150dbe53c2cba3ad70ac45573a2d3d7fec0a8d16bc3a8c477c9/runloop_api_client-0.56.2.tar.gz", hash = "sha256:052c2e8d3bf5f93a851a84198302165fa5d58ef19f4483f89c293c4f3436dcca", size = 327450, upload-time = "2025-08-25T19:05:50.667Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/81/f33215d51cd337b675cb5f24462b8581ba0d80e4be5460b7e1e4c172cba1/runloop_api_client-0.57.0.tar.gz", hash = "sha256:fddef6b39da6bb5ebca54a367a3d057726175db2639317a867a6e612cff3d1e6", size = 327830, upload-time = "2025-08-27T17:19:22.162Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5e/c3/1fef37f1ba3da607f9a9caed5bb94c7e4bcb6ea21742f07c22743adb5597/runloop_api_client-0.56.2-py3-none-any.whl", hash = "sha256:71f6c19cf9bec47a61fb1b505802ef76775a9a96bb77f797e137eebeff4f1a83", size = 243674, upload-time = "2025-08-25T19:05:49.486Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/22/40d1b40588e7053efdafb165b05e677be2f9a9ccb0caa31d6285f3be9aab/runloop_api_client-0.57.0-py3-none-any.whl", hash = "sha256:f4859b832a8c6f192e3f8b015db9eb36c1ba2d69377c84d29795363c3ffdb1f3", size = 243584, upload-time = "2025-08-27T17:19:20.55Z" },
 ]
 
 [[package]]

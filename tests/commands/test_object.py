@@ -507,13 +507,18 @@ async def test_object_upload_content_type_detection(capsys):
 
     # Test different file extensions
     test_cases = [
-        ('test.json', 'application/json'),
-        ('test.txt', 'text/plain'),
-        ('test.md', 'text/plain'),
-        ('test.png', 'image/png'),
-        ('test.unknown', 'application/octet-stream'),
-        ('test.zst', 'application/octet-stream'),
-        ('test.tar.zst', 'application/octet-stream'),
+        ('test.json', 'text'),
+        ('test.txt', 'text'),
+        ('test.md', 'text'),
+        ('test.png', 'unspecified'),
+        ('test.unknown', 'unspecified'),
+        ('test.zst', 'unspecified'),
+        ('test.tar.zst', 'unspecified'),
+        ('test.tar.gz', 'tgz'),
+        ('test.tgz', 'tgz'),
+        ('test.tar', 'tar'),
+        ('test.gz', 'gzip'),
+        ('test.zip', 'unspecified'),
     ]
 
     for filename, expected_type in test_cases:
