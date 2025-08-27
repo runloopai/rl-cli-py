@@ -187,7 +187,7 @@ def detect_content_type(file_path: str) -> str:
         file_path: Path to the file
         
     Returns:
-        str: API content type (e.g., 'text/plain', 'application/json')
+        str: Object create content type enum: 'unspecified' | 'text' | 'gzip' | 'tar' | 'tgz'
     """
     # Handle multi-part archive extensions first
     lower = file_path.lower()
@@ -453,6 +453,9 @@ async def upload(args) -> None:
         # Step 1: Create the object (initial state: UPLOADING)
         # Detect content type from file extension if not provided
         content_type = args.content_type if hasattr(args, "content_type") and args.content_type else detect_content_type(args.path)
+        # Normalize to allowed enum values; default to 'unspecified' if not recognized
+        if content_type not in ("unspecified", "text", "gzip", "tar", "tgz"):
+            content_type = "unspecified"
         print(f"Using content type: {content_type}")
         
         create_response = await runloop_api_client().objects.create(

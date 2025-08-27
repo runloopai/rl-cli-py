@@ -4,24 +4,43 @@ A command line utility for interacting with runloop APIs.
 
 # Table of Contents
 
+- [rl-cli](#rl-cli)
+- [Table of Contents](#table-of-contents)
 - [Setup](#setup)
   - [Installation](#installation)
   - [For developers](#for-developers)
   - [Running Tests](#running-tests)
-- [Quick Reference](#quick-reference)
+- [Quick reference](#quick-reference)
   - [Devbox](#devbox)
+    - [Create a devbox and run a single command](#create-a-devbox-and-run-a-single-command)
+    - [Observe logs](#observe-logs)
+    - [Check the devbox status](#check-the-devbox-status)
+    - [Use scp to copy files to/from the devbox](#use-scp-to-copy-files-tofrom-the-devbox)
+    - [Use rsync to copy files to/from the devbox](#use-rsync-to-copy-files-tofrom-the-devbox)
+    - [Use port forwarding to create a tunnel to remote devbox](#use-port-forwarding-to-create-a-tunnel-to-remote-devbox)
   - [Blueprint](#blueprint)
+    - [Create a Blueprint with setup commands](#create-a-blueprint-with-setup-commands)
   - [Snapshot](#snapshot)
+    - [Create a Snapshot of devbox (asynchronous)](#create-a-snapshot-of-devbox-asynchronous)
+    - [Check Snapshot Status](#check-snapshot-status)
 - [Command Reference](#command-reference)
   - [Devbox Commands](#devbox-commands)
     - [Create a Devbox](#create-a-devbox)
     - [List Devboxes](#list-devboxes)
     - [Get Devbox Details](#get-devbox-details)
     - [Execute Commands](#execute-commands)
+      - [Synchronous Execution](#synchronous-execution)
+      - [Asynchronous Execution](#asynchronous-execution)
     - [SSH Access](#ssh-access)
     - [File Transfer](#file-transfer)
+      - [SCP](#scp)
+      - [Rsync](#rsync)
     - [Port Forwarding](#port-forwarding)
     - [Devbox Management](#devbox-management)
+      - [Suspend Devbox](#suspend-devbox)
+      - [Resume Devbox](#resume-devbox)
+      - [Shutdown Devbox](#shutdown-devbox)
+      - [View Logs](#view-logs)
   - [Blueprint Commands](#blueprint-commands)
     - [Create Blueprint](#create-blueprint)
     - [Preview Blueprint](#preview-blueprint)
@@ -29,13 +48,18 @@ A command line utility for interacting with runloop APIs.
     - [Get Blueprint Details](#get-blueprint-details)
     - [View Blueprint Logs](#view-blueprint-logs)
   - [Snapshot Commands](#snapshot-commands)
-    - [Create Snapshot](#create-snapshot)
-    - [Check Snapshot Status](#check-snapshot-status)
+    - [Create Snapshot (Asynchronous)](#create-snapshot-asynchronous)
+    - [Get Snapshot Status](#get-snapshot-status)
     - [List Snapshots](#list-snapshots)
   - [Invocation Commands](#invocation-commands)
     - [Get Invocation Details](#get-invocation-details)
   - [Object Commands](#object-commands)
+    - [Upload an Object](#upload-an-object)
     - [Download an Object](#download-an-object)
+    - [List Objects](#list-objects)
+    - [Get Object Details](#get-object-details)
+    - [Delete an Object](#delete-an-object)
+    - [Object Content Types](#object-content-types)
 
 # Setup
 
@@ -423,6 +447,29 @@ rl invocation get --id <invocation_id>
 
 ## Object Commands
 
+### Upload an Object
+
+Upload a local file as an Object. The CLI auto-detects the create API content type based on the filename.
+
+```bash
+# Auto-detect content type from file name
+rl object upload --path ./data.txt --name data.txt
+
+# Explicitly set content type (overrides detection)
+rl object upload --path ./archive.tar.gz --name archive.tgz --content_type tgz
+```
+
+Notes:
+
+- Allowed values for `--content_type` are: `unspecified`, `text`, `gzip`, `tar`, `tgz`.
+- If the file name does not match a known pattern, the content type is set to `unspecified`.
+- Auto-detection rules (by extension):
+  - `*.txt`, `*.json`, `*.md`, `*.yaml`, `*.yml`, `*.csv`, etc. → `text`
+  - `*.gz` → `gzip`
+  - `*.tar` → `tar`
+  - `*.tar.gz`, `*.tgz` → `tgz`
+  - Everything else (e.g., `*.zip`, `*.zst`, images, unknown) → `unspecified`
+
 ### Download an Object
 
 Download an object to your local filesystem:
@@ -442,3 +489,38 @@ rl object download --id obj_123 --path ./myfile.zip --extract
 ```
 
 The `--extract` flag will automatically extract supported archive formats after download. The extraction directory will be created using the archive name without the extension.
+
+### List Objects
+
+```bash
+rl object list --limit 20
+
+# Filter examples
+rl object list --name sample
+rl object list --content_type text
+rl object list --state READ_ONLY
+```
+
+### Get Object Details
+
+```bash
+rl object get --id obj_123
+```
+
+### Delete an Object
+
+```bash
+rl object delete --id obj_123
+```
+
+### Object Content Types
+
+The object create API supports the following content types:
+
+- `unspecified`
+- `text`
+- `gzip`
+- `tar`
+- `tgz`
+
+The CLI maps file extensions to these values during upload. If a file doesn't match any rule, it is marked as `unspecified`.
