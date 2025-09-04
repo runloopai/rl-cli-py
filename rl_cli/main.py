@@ -204,7 +204,30 @@ def setup_devbox_parser(subparsers):
     tunnel_parser.add_argument("--id", required=True, help="Devbox ID")
     tunnel_parser.add_argument("ports", help="Port mapping in the form local:remote")
 
-    # (file operation subcommands intentionally omitted)
+    # File operations via API wrappers
+    read_file_parser = subparsers.add_parser("read", help="Read a file from a devbox using the API")
+    read_file_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.devbox_read(args)))
+    read_file_parser.add_argument("--id", required=True, help="ID of the devbox")
+    read_file_parser.add_argument("--remote", required=True, help="Remote file path to read from the devbox")
+    read_file_parser.add_argument("--output", required=True, help="Local file path to write the contents to")
+
+    write_file_parser = subparsers.add_parser("write", help="Write a file to a devbox using the API")
+    write_file_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.devbox_write(args)))
+    write_file_parser.add_argument("--id", required=True, help="ID of the devbox")
+    write_file_parser.add_argument("--input", required=True, help="Local file path to read contents from")
+    write_file_parser.add_argument("--remote", required=True, help="Remote file path to write to on the devbox")
+
+    upload_file_parser = subparsers.add_parser("upload_file", help="Upload a file to a devbox")
+    upload_file_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.upload_file(args)))
+    upload_file_parser.add_argument("--id", required=True, help="ID of the devbox")
+    upload_file_parser.add_argument("--path", required=True, help="Path where to save the file in the devbox")
+    upload_file_parser.add_argument("--file", required=True, help="Path to the local file to upload")
+
+    download_file_parser = subparsers.add_parser("download_file", help="Download a file from a devbox")
+    download_file_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.download_file(args)))
+    download_file_parser.add_argument("--id", required=True, help="ID of the devbox")
+    download_file_parser.add_argument("--file_path", required=True, help="Path to the file in the devbox")
+    download_file_parser.add_argument("--output_path", required=True, help="Local path where to save the downloaded file")
 
     # Snapshot operations
     snapshot_parser = subparsers.add_parser("snapshot", help="Manage devbox snapshots")

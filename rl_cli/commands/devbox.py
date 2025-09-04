@@ -389,6 +389,14 @@ async def tunnel(args) -> None:
         sys.exit(e.returncode)
 
 # File operations
+async def devbox_read(args) -> None:
+    """Compatibility wrapper: read a file from a devbox (API)."""
+    await read_file(args)
+
+async def devbox_write(args) -> None:
+    """Compatibility wrapper: write a file to a devbox (API)."""
+    await write_file(args)
+
 async def read_file(args) -> None:
     """Read a file from a devbox."""
     assert args.id is not None

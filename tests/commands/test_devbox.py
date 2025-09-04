@@ -517,6 +517,22 @@ async def test_write_file():
         )
 
 @pytest.mark.asyncio
+async def test_devbox_read_wrapper_calls_read_file():
+    """devbox_read should delegate to read_file."""
+    with patch('rl_cli.commands.devbox.read_file', new=AsyncMock()) as mock_read:
+        args = AsyncMock()
+        await devbox.devbox_read(args)
+        mock_read.assert_called_once_with(args)
+
+@pytest.mark.asyncio
+async def test_devbox_write_wrapper_calls_write_file():
+    """devbox_write should delegate to write_file."""
+    with patch('rl_cli.commands.devbox.write_file', new=AsyncMock()) as mock_write:
+        args = AsyncMock()
+        await devbox.devbox_write(args)
+        mock_write.assert_called_once_with(args)
+
+@pytest.mark.asyncio
 async def test_write_file_not_found():
     """Test writing a file that doesn't exist."""
     with patch('os.path.exists', return_value=False):

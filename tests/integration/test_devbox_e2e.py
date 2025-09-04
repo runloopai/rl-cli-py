@@ -152,6 +152,36 @@ class TestDevboxE2E:
         ], capture_output=True, text=True)
         assert result.returncode == 0
 
+    def test_devbox_read_write_api(self, temp_dir):
+        """Test writing to and reading from a devbox via API wrappers."""
+        import subprocess
+        import os
+        
+        devbox_id = self.create_test_devbox()
+        remote_path = "/tmp/e2e_api_rw.txt"
+        local_input = os.path.join(temp_dir, "input.txt")
+        local_output = os.path.join(temp_dir, "output.txt")
+        
+        with open(local_input, 'w') as f:
+            f.write("hello via api")
+        
+        # Write
+        result = subprocess.run([
+            "uv", "run", "rl", "devbox", "write",
+            "--id", devbox_id, "--input", local_input, "--remote", remote_path
+        ], capture_output=True, text=True)
+        assert result.returncode == 0
+        
+        # Read
+        result = subprocess.run([
+            "uv", "run", "rl", "devbox", "read",
+            "--id", devbox_id, "--remote", remote_path, "--output", local_output
+        ], capture_output=True, text=True)
+        assert result.returncode == 0
+        assert os.path.exists(local_output)
+        with open(local_output, 'r') as f:
+            assert f.read() == "hello via api"
+
     def test_command_execution(self):
         """Test executing commands on a devbox."""
         import subprocess
