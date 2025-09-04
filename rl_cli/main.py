@@ -109,11 +109,7 @@ def setup_devbox_parser(subparsers):
         action="store_true",
         help="Run as root",
     )
-    create_parser.add_argument(
-        "--root",
-        action="store_true",
-        help="Run as root",
-    )
+    
 
     # List
     list_parser = subparsers.add_parser("list", help="List devboxes")
