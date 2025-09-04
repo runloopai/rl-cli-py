@@ -66,11 +66,12 @@ async def create(args) -> None:
 async def list_devboxes(args) -> None:
     """List all devboxes."""
     extra_query = {"status": args.status} if args.status is not None else None
-    paginator = await runloop_api_client().devboxes.list(
+    result = await runloop_api_client().devboxes.list(
         extra_query=extra_query,
         limit=args.limit,
     )
-    async for devbox in paginator:
+    # Iterate over the devboxes in the result, not the paginator
+    for devbox in result.devboxes:
         print(f"devbox={devbox.model_dump_json(indent=4)}")
 
 async def get(args) -> None:

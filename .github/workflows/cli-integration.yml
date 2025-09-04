@@ -3,9 +3,9 @@ name: Integration Tests
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   integration-tests:
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: "3.13"
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -40,4 +40,4 @@ jobs:
           RUNLOOP_ENV: dev
         run: |
           pytest -q tests/integration/test_object_e2e.py
-
+          pytest -q tests/integration/test_devbox_e2e.py

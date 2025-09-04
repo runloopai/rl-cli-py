@@ -62,13 +62,10 @@ async def test_list_devboxes():
     mock_api_client = AsyncMock()
     mock_api_client.devboxes = AsyncMock()
 
-    # Create mock paginator
-    async def mock_aiter(self):
-        yield mock_devbox
-
-    mock_paginator = AsyncMock()
-    mock_paginator.__aiter__ = mock_aiter
-    mock_api_client.devboxes.list = AsyncMock(return_value=mock_paginator)
+    # Create mock result object with devboxes property
+    mock_result = AsyncMock()
+    mock_result.devboxes = [mock_devbox]
+    mock_api_client.devboxes.list = AsyncMock(return_value=mock_result)
 
     # Clear the cache to ensure we get a fresh client
     runloop_api_client.cache_clear()
@@ -572,3 +569,258 @@ async def test_upload_file():
         mock_print.assert_called_once_with(
             "Uploaded file /local/file.txt to /remote/path/"
         )
+
+
+@pytest.mark.asyncio
+async def test_download_file():
+    """Test downloading a file from a devbox."""
+    mock_result = AsyncMock()
+    mock_result.write_to_file = AsyncMock()
+    
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.download_file = AsyncMock(return_value=mock_result)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        args = AsyncMock()
+        args.id = "test-devbox-id"
+        args.file_path = "/remote/file.txt"
+        args.output_path = "/local/output.txt"
+        
+        await devbox.download_file(args)
+        
+        mock_api_client.devboxes.download_file.assert_called_once_with(
+            id="test-devbox-id",
+            path="/remote/file.txt"
+        )
+        mock_result.write_to_file.assert_called_once_with("/local/output.txt")
+        mock_print.assert_called_once_with("File downloaded to /local/output.txt")
+
+
+@pytest.mark.asyncio
+async def test_wait_for_ready_success():
+    """Test wait_for_ready when devbox becomes ready."""
+    mock_devbox = AsyncMock()
+    mock_devbox.status = "running"
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.retrieve = AsyncMock(return_value=mock_devbox)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        result = await devbox.wait_for_ready("test-devbox-id", timeout_seconds=10)
+        
+        assert result is True
+        mock_api_client.devboxes.retrieve.assert_called_with("test-devbox-id")
+        mock_print.assert_called_with("Devbox test-devbox-id is ready!")
+
+
+@pytest.mark.asyncio
+async def test_wait_for_ready_failure():
+    """Test wait_for_ready when devbox fails."""
+    mock_devbox = AsyncMock()
+    mock_devbox.status = "failure"
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.retrieve = AsyncMock(return_value=mock_devbox)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        result = await devbox.wait_for_ready("test-devbox-id", timeout_seconds=10)
+        
+        assert result is False
+        mock_print.assert_called_with("Devbox test-devbox-id failed to start (status: failure)")
+
+
+@pytest.mark.asyncio
+async def test_wait_for_ready_timeout():
+    """Test wait_for_ready timeout."""
+    mock_devbox = MockDevbox(status="provisioning")
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.retrieve = AsyncMock(return_value=mock_devbox)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print, \
+         patch('asyncio.sleep', new=AsyncMock()):
+        
+        result = await devbox.wait_for_ready("test-devbox-id", timeout_seconds=0.1, poll_interval_seconds=0.05)
+        
+        assert result is False
+        assert any("Timeout waiting for devbox" in str(call) for call in mock_print.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_snapshot():
+    """Test creating a devbox snapshot."""
+    from unittest.mock import Mock
+    mock_snapshot = Mock()
+    mock_snapshot.model_dump_json.return_value = '{"id": "snap-123"}'
+    
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.snapshot_disk_async = AsyncMock(return_value=mock_snapshot)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        args = AsyncMock()
+        args.devbox_id = "test-devbox-id"
+        
+        await devbox.snapshot(args)
+        
+        mock_api_client.devboxes.snapshot_disk_async.assert_called_once_with("test-devbox-id")
+        mock_print.assert_called_once_with('snapshot={"id": "snap-123"}')
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_status():
+    """Test getting snapshot status."""
+    from unittest.mock import Mock
+    mock_status = Mock()
+    mock_status.model_dump_json.return_value = '{"status": "completed"}'
+    
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.disk_snapshots = AsyncMock()
+    mock_api_client.devboxes.disk_snapshots.query_status = AsyncMock(return_value=mock_status)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        args = AsyncMock()
+        args.snapshot_id = "snap-123"
+        
+        await devbox.get_snapshot_status(args)
+        
+        mock_api_client.devboxes.disk_snapshots.query_status.assert_called_once_with("snap-123")
+        mock_print.assert_called_once_with('snapshot_status={"status": "completed"}')
+
+
+@pytest.mark.asyncio
+async def test_list_snapshots():
+    """Test listing snapshots."""
+    from unittest.mock import Mock
+    mock_snapshots = Mock()
+    mock_snapshots.model_dump_json.return_value = '{"snapshots": []}'
+    
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.list_disk_snapshots = AsyncMock(return_value=mock_snapshots)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        args = AsyncMock()
+        
+        await devbox.list_snapshots(args)
+        
+        mock_api_client.devboxes.list_disk_snapshots.assert_called_once()
+        mock_print.assert_called_once_with('snapshots={"snapshots": []}')
+
+
+@pytest.mark.asyncio
+async def test_parse_code_mounts():
+    """Test _parse_code_mounts function."""
+    # Test with None
+    result = devbox._parse_code_mounts(None)
+    assert result is None
+    
+    # Test with valid JSON
+    json_str = '{"repo_url": "https://github.com/test/repo", "path": "/app"}'
+    result = devbox._parse_code_mounts(json_str)
+    assert result is not None
+    # Can't easily test the exact structure without importing CodeMountParameters
+
+
+@pytest.mark.asyncio 
+async def test_ssh_with_no_wait():
+    """Test SSH command with --no-wait flag."""
+    mock_ssh_key_result = AsyncMock()
+    mock_ssh_key_result.ssh_private_key = "test-key"
+    mock_ssh_key_result.url = "test-host"
+    
+    mock_devbox = AsyncMock()
+    mock_devbox.launch_parameters.user_parameters.username = "test-user"
+    
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.create_ssh_key = AsyncMock(return_value=mock_ssh_key_result)
+    mock_api_client.devboxes.retrieve = AsyncMock(return_value=mock_devbox)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('os.makedirs'), \
+         patch('builtins.open', create=True), \
+         patch('os.chmod'), \
+         patch('os.fsync'), \
+         patch('subprocess.run') as mock_run, \
+         patch('rl_cli.commands.devbox.ssh_url', return_value="ssh.runloop.ai:443"):
+        
+        args = AsyncMock()
+        args.id = "test-devbox-id"
+        args.no_wait = True
+        args.config_only = False
+        
+        await devbox.ssh(args)
+        
+        # Should not call wait_for_ready
+        mock_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_ssh_config_only_with_no_wait():
+    """Test SSH config-only generation with --no-wait."""
+    mock_ssh_key_result = AsyncMock()
+    mock_ssh_key_result.ssh_private_key = "test-key"
+    mock_ssh_key_result.url = "test-host"
+    
+    mock_devbox = AsyncMock()
+    mock_devbox.launch_parameters.user_parameters.username = "test-user"
+    
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.create_ssh_key = AsyncMock(return_value=mock_ssh_key_result)
+    mock_api_client.devboxes.retrieve = AsyncMock(return_value=mock_devbox)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('os.makedirs'), \
+         patch('builtins.open', create=True), \
+         patch('os.chmod'), \
+         patch('os.fsync'), \
+         patch('rl_cli.commands.devbox.print') as mock_print, \
+         patch('rl_cli.commands.devbox.ssh_url', return_value="ssh.runloop.ai:443"):
+        
+        args = AsyncMock()
+        args.id = "test-devbox-id"
+        args.no_wait = True
+        args.config_only = True
+        
+        await devbox.ssh(args)
+        
+        # Should print SSH config
+        config_output = mock_print.call_args[0][0]
+        assert "Host test-devbox-id" in config_output
+        assert "User test-user" in config_output
+        assert "Hostname test-host" in config_output
