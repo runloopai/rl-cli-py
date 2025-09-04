@@ -268,7 +268,7 @@ async def test_ssh_command():
          patch('os.fsync'), \
          patch('subprocess.run') as mock_run, \
          patch('rl_cli.commands.devbox.ssh_url', return_value="ssh.runloop.ai:443"), \
-         patch('rl_cli.commands.devbox.wait_for_ready', return_value=True):
+         patch('rl_cli.commands.devbox.wait_for_ready', new=AsyncMock(return_value=True)):
         
         args = AsyncMock()
         args.id = "test-devbox-id"

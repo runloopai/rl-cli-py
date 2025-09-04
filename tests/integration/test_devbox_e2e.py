@@ -54,8 +54,10 @@ class TestDevboxE2E:
         # Cleanup any devboxes created during tests
         for devbox_id in self.created_devboxes:
             try:
-                # Try to shutdown the devbox
-                run(["devbox", "shutdown", devbox_id])
+                import subprocess
+                subprocess.run([
+                    "uv", "run", "rl", "devbox", "shutdown", "--id", devbox_id
+                ], capture_output=True, text=True)
             except Exception as e:
                 print(f"Failed to cleanup devbox {devbox_id}: {e}")
 
@@ -85,7 +87,7 @@ class TestDevboxE2E:
         start_time = time.time()
         while time.time() - start_time < timeout:
             result = subprocess.run([
-                "uv", "run", "rl", "devbox", "get", devbox_id
+                "uv", "run", "rl", "devbox", "get", "--id", devbox_id
             ], capture_output=True, text=True)
             
             if result.returncode == 0:
@@ -108,7 +110,7 @@ class TestDevboxE2E:
         
         # Test SSH key creation by attempting to get SSH config
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "ssh", devbox_id, "--config-only"
+            "uv", "run", "rl", "devbox", "ssh", "--id", devbox_id, "--config-only"
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
@@ -135,8 +137,8 @@ class TestDevboxE2E:
         
         # Write file to devbox
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "write-file",
-            devbox_id, "--input", temp_file, "--remote", remote_path
+            "uv", "run", "rl", "devbox", "write",
+            "--id", devbox_id, "--input", temp_file, "--remote", remote_path
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
@@ -144,8 +146,8 @@ class TestDevboxE2E:
         
         # Read file back from devbox
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "read-file", 
-            devbox_id, "--remote", remote_path, "--output", local_output
+            "uv", "run", "rl", "devbox", "read", 
+            "--id", devbox_id, "--remote", remote_path, "--output", local_output
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
@@ -165,8 +167,8 @@ class TestDevboxE2E:
         
         # Upload file to devbox
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "upload-file",
-            devbox_id, "--path", remote_path, "--file", temp_file
+            "uv", "run", "rl", "devbox", "upload_file",
+            "--id", devbox_id, "--path", remote_path, "--file", temp_file
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
@@ -181,8 +183,8 @@ class TestDevboxE2E:
         
         # Execute a simple command
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "execute",
-            devbox_id, "--command", "echo 'hello from devbox'"
+            "uv", "run", "rl", "devbox", "exec",
+            "--id", devbox_id, "--command", "echo 'hello from devbox'"
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
@@ -198,7 +200,7 @@ class TestDevboxE2E:
         
         # Suspend devbox
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "suspend", devbox_id
+            "uv", "run", "rl", "devbox", "suspend", "--id", devbox_id
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
@@ -210,7 +212,7 @@ class TestDevboxE2E:
         
         # Resume devbox  
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "resume", devbox_id
+            "uv", "run", "rl", "devbox", "resume", "--id", devbox_id
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
