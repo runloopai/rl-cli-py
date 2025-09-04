@@ -4,7 +4,12 @@ import asyncio
 import os
 import sys
 
+from dotenv import load_dotenv
+
 from . import __version__
+
+# Load .env file if it exists
+load_dotenv()
 from .utils import (
     get_latest_version,
     update_check_cache,

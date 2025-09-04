@@ -197,3 +197,232 @@ async def test_shutdown_devbox():
 
         mock_api_client.devboxes.shutdown.assert_called_once_with("test-id")
         mock_print.assert_called_once_with(f"devbox={mock_devbox.model_dump_json(indent=4)}")
+
+@pytest.mark.asyncio
+async def test_get_ssh_key():
+    """Test getting SSH key for a devbox."""
+    mock_ssh_key_result = AsyncMock()
+    mock_ssh_key_result.ssh_private_key = "-----BEGIN PRIVATE KEY-----\ntest-key-content\n-----END PRIVATE KEY-----"
+    mock_ssh_key_result.url = "test-host"
+    
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.create_ssh_key = AsyncMock(return_value=mock_ssh_key_result)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('os.makedirs') as mock_makedirs, \
+         patch('builtins.open', create=True) as mock_open, \
+         patch('os.chmod') as mock_chmod, \
+         patch('os.fsync') as mock_fsync:
+        
+        result = await devbox.get_ssh_key("test-devbox-id")
+        
+        assert result is not None
+        keyfile_path, username, url = result
+        
+        assert keyfile_path.endswith("test-devbox-id.pem")
+        assert username == "-----BEGIN PRIVATE KEY-----\ntest-key-content\n-----END PRIVATE KEY-----"
+        assert url == "test-host"
+        
+        mock_api_client.devboxes.create_ssh_key.assert_called_once_with("test-devbox-id")
+        mock_makedirs.assert_called_once()
+        mock_open.assert_called_once()
+        mock_chmod.assert_called_once_with(keyfile_path, 0o600)
+
+@pytest.mark.asyncio
+async def test_get_ssh_key_failure():
+    """Test SSH key creation failure."""
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.create_ssh_key = AsyncMock(return_value=None)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        result = await devbox.get_ssh_key("test-devbox-id")
+        
+        assert result is None
+        mock_print.assert_called_once_with("Failed to create ssh key")
+
+@pytest.mark.asyncio
+async def test_ssh_command():
+    """Test SSH connection to a devbox."""
+    mock_ssh_key_result = AsyncMock()
+    mock_ssh_key_result.ssh_private_key = "test-key"
+    mock_ssh_key_result.url = "test-host"
+    
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.create_ssh_key = AsyncMock(return_value=mock_ssh_key_result)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('os.makedirs'), \
+         patch('builtins.open', create=True), \
+         patch('os.chmod'), \
+         patch('os.fsync'), \
+         patch('subprocess.run') as mock_run, \
+         patch('rl_cli.commands.devbox.ssh_url', return_value="ssh.runloop.ai:443"), \
+         patch('rl_cli.commands.devbox.wait_for_ready', return_value=True):
+        
+        args = AsyncMock()
+        args.id = "test-devbox-id"
+        args.no_wait = False
+        args.timeout = 180
+        args.poll_interval = 3
+        args.config_only = False
+        
+        # Mock devbox retrieval for username
+        mock_devbox = AsyncMock()
+        mock_devbox.launch_parameters.user_parameters.username = "test-user"
+        mock_api_client.devboxes.retrieve = AsyncMock(return_value=mock_devbox)
+        
+        await devbox.ssh(args)
+        
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert "/usr/bin/ssh" in call_args
+        assert "test-user@test-host" in " ".join(call_args)
+
+@pytest.mark.asyncio
+async def test_tunnel_command():
+    """Test creating a tunnel to a devbox."""
+    mock_ssh_key_result = AsyncMock()
+    mock_ssh_key_result.ssh_private_key = "test-key"
+    mock_ssh_key_result.url = "test-host"
+    
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.create_ssh_key = AsyncMock(return_value=mock_ssh_key_result)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('os.makedirs'), \
+         patch('builtins.open', create=True), \
+         patch('os.chmod'), \
+         patch('os.fsync'), \
+         patch('subprocess.run') as mock_run, \
+         patch('signal.signal'), \
+         patch('rl_cli.commands.devbox.print') as mock_print, \
+         patch('rl_cli.commands.devbox.ssh_url', return_value="ssh.runloop.ai:443"):
+        
+        args = AsyncMock()
+        args.id = "test-devbox-id"
+        args.ports = "8080:3000"
+        
+        await devbox.tunnel(args)
+        
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert "/usr/bin/ssh" in call_args
+        assert "-L" in call_args
+        assert "8080:localhost:3000" in call_args
+        mock_print.assert_any_call("Starting tunnel: local port 8080 -> remote port 3000")
+
+@pytest.mark.asyncio
+async def test_read_file():
+    """Test reading a file from a devbox."""
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.read_file_contents = AsyncMock(return_value="file content")
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('builtins.open', create=True) as mock_open, \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        args = AsyncMock()
+        args.id = "test-devbox-id"
+        args.remote = "/path/to/remote/file.txt"
+        args.output = "/path/to/local/file.txt"
+        
+        await devbox.read_file(args)
+        
+        mock_api_client.devboxes.read_file_contents.assert_called_once_with(
+            id="test-devbox-id", 
+            file_path="/path/to/remote/file.txt"
+        )
+        mock_open.assert_called_once_with("/path/to/local/file.txt", "w", encoding="utf-8")
+        mock_print.assert_called_once_with(
+            "Wrote remote file /path/to/remote/file.txt from devbox test-devbox-id to local file /path/to/local/file.txt"
+        )
+
+@pytest.mark.asyncio 
+async def test_write_file():
+    """Test writing a file to a devbox."""
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.write_file_contents = AsyncMock()
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('os.path.exists', return_value=True), \
+         patch('builtins.open', create=True) as mock_open, \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        mock_open.return_value.__enter__.return_value.read.return_value = "local file content"
+        
+        args = AsyncMock()
+        args.id = "test-devbox-id"
+        args.input = "/path/to/local/file.txt"
+        args.remote = "/path/to/remote/file.txt"
+        
+        await devbox.write_file(args)
+        
+        mock_api_client.devboxes.write_file_contents.assert_called_once_with(
+            id="test-devbox-id",
+            file_path="/path/to/remote/file.txt", 
+            contents="local file content"
+        )
+        mock_print.assert_called_once_with(
+            "Wrote local file /path/to/local/file.txt to remote file /path/to/remote/file.txt on devbox test-devbox-id"
+        )
+
+@pytest.mark.asyncio
+async def test_write_file_not_found():
+    """Test writing a file that doesn't exist."""
+    with patch('os.path.exists', return_value=False):
+        args = AsyncMock()
+        args.input = "/nonexistent/file.txt"
+        
+        with pytest.raises(FileNotFoundError, match="Input file /nonexistent/file.txt does not exist"):
+            await devbox.write_file(args)
+
+@pytest.mark.asyncio
+async def test_upload_file():
+    """Test uploading a file to a devbox."""
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.upload_file = AsyncMock()
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('builtins.open', create=True) as mock_open, \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        
+        mock_file = mock_open.return_value.__enter__.return_value
+        
+        args = AsyncMock()
+        args.id = "test-devbox-id"
+        args.path = "/remote/path/"
+        args.file = "/local/file.txt"
+        
+        await devbox.upload_file(args)
+        
+        mock_api_client.devboxes.upload_file.assert_called_once_with(
+            id="test-devbox-id",
+            path="/remote/path/",
+            file=mock_file
+        )
+        mock_print.assert_called_once_with(
+            "Uploaded file /local/file.txt to /remote/path/"
+        )
