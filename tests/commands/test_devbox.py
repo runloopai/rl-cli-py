@@ -136,6 +136,136 @@ async def test_execute_command():
         mock_print.assert_called_once_with("exec_result=", mock_result)
 
 @pytest.mark.asyncio
+async def test_execute_async_command():
+    """Test executing a command asynchronously on a devbox."""
+    mock_devbox = MockDevbox()
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.execute_async = AsyncMock(return_value=mock_devbox)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        args = AsyncMock()
+        args.id = "test-id"
+        args.command = "echo hello"
+        args.shell_name = None
+
+        await devbox.execute_async(args)
+
+        mock_api_client.devboxes.execute_async.assert_called_once()
+        # Starts with 'execution='
+        assert mock_print.call_args[0][0].startswith("execution=")
+
+@pytest.mark.asyncio
+async def test_get_async_exec():
+    """Test retrieving the status of an async execution."""
+    mock_execution = MockDevbox(status="finished")
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.executions = AsyncMock()
+    mock_api_client.devboxes.executions.retrieve = AsyncMock(return_value=mock_execution)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        args = AsyncMock()
+        args.id = "test-id"
+        args.execution_id = "exec-123"
+        args.shell_name = None
+
+        await devbox.get_async_exec(args)
+
+        mock_api_client.devboxes.executions.retrieve.assert_called_once_with(
+            execution_id="exec-123",
+            devbox_id="test-id",
+            shell_name=NOT_GIVEN,
+        )
+        assert mock_print.call_args[0][0].startswith("execution=")
+
+@pytest.mark.asyncio
+async def test_logs_printing():
+    """Test logs printing formatting for different log entry shapes."""
+    class LogEntry:
+        def __init__(self, timestamp_ms=None, source=None, cmd=None, message=None, exit_code=None):
+            self.timestamp_ms = timestamp_ms
+            self.source = source
+            self.cmd = cmd
+            self.message = message
+            self.exit_code = exit_code
+
+    mock_logs_response = AsyncMock()
+    mock_logs_response.logs = [
+        LogEntry(timestamp_ms=1710000000000, source="entrypoint", cmd="echo test"),
+        LogEntry(timestamp_ms=1710000000500, message="hello"),
+        LogEntry(timestamp_ms=1710000001000, exit_code=0),
+    ]
+
+    mock_api_client = AsyncMock()
+    mock_api_client.devboxes = AsyncMock()
+    mock_api_client.devboxes.logs = AsyncMock()
+    mock_api_client.devboxes.logs.list = AsyncMock(return_value=mock_logs_response)
+
+    runloop_api_client.cache_clear()
+
+    with patch('rl_cli.utils.AsyncRunloop', return_value=mock_api_client), \
+         patch('rl_cli.commands.devbox.print') as mock_print:
+        args = AsyncMock()
+        args.id = "test-id"
+
+        await devbox.logs(args)
+
+        mock_api_client.devboxes.logs.list.assert_called_once_with("test-id")
+        printed_lines = [call.args[0] for call in mock_print.call_args_list]
+        assert any("-> echo test" in line for line in printed_lines)
+        assert any("  hello" in line for line in printed_lines)
+        assert any("-> exit_code=0" in line for line in printed_lines)
+
+@pytest.mark.asyncio
+async def test_scp_invocation_builds_command():
+    """Test scp builds the correct command and executes it."""
+    with patch('rl_cli.commands.devbox.get_ssh_key', new=AsyncMock(return_value=("/tmp/key.pem", "key", "host.example"))), \
+         patch('rl_cli.commands.devbox.ssh_url', return_value="ssh.runloop.ai:443"), \
+         patch('subprocess.run') as mock_run:
+        args = AsyncMock()
+        args.id = "dbx_123"
+        args.src = "./local.txt"
+        args.dst = ":/remote.txt"
+        args.scp_options = None
+
+        await devbox.scp(args)
+
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args.kwargs.get('args') or mock_run.call_args[0][0]
+        # Ensure scp is invoked and remote path correctly prefixed
+        assert cmd[0] == "scp"
+        assert f"user@host.example:/remote.txt" in cmd
+
+@pytest.mark.asyncio
+async def test_rsync_invocation_builds_command():
+    """Test rsync builds the correct command and executes it."""
+    with patch('rl_cli.commands.devbox.get_ssh_key', new=AsyncMock(return_value=("/tmp/key.pem", "key", "host.example"))), \
+         patch('rl_cli.commands.devbox.ssh_url', return_value="ssh.runloop.ai:443"), \
+         patch('subprocess.run') as mock_run:
+        args = AsyncMock()
+        args.id = "dbx_123"
+        args.src = ":/remote_dir"
+        args.dst = "./local_dir"
+        args.rsync_options = "-avz"
+
+        await devbox.rsync(args)
+
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args.kwargs.get('args') or mock_run.call_args[0][0]
+        assert cmd[0] == "rsync"
+        # Contains -e with ssh and proxy command
+        assert "-e" in cmd
+        # Ensure remote arg contains user@host
+        assert any(arg.startswith("user@host.example:") for arg in cmd)
+
+@pytest.mark.asyncio
 async def test_suspend_devbox():
     """Test suspending a devbox."""
     mock_devbox = MockDevbox(status="suspended")

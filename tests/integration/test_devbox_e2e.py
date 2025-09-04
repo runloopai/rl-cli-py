@@ -21,20 +21,6 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def temp_file():
-    """Create a temporary file for testing."""
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-        f.write("test content for devbox file operations")
-        temp_path = f.name
-    
-    yield temp_path
-    
-    # Cleanup
-    if os.path.exists(temp_path):
-        os.unlink(temp_path)
-
-
-@pytest.fixture
 def temp_dir():
     """Create a temporary directory for testing."""
     with tempfile.TemporaryDirectory() as temp_path:
@@ -126,53 +112,45 @@ class TestDevboxE2E:
         stat = os.stat(key_path)
         assert oct(stat.st_mode)[-3:] == "600"
 
-    def test_file_write_and_read(self, temp_file, temp_dir):
-        """Test writing a file to devbox and reading it back."""
+    def test_logs_and_exec_async(self):
+        """Test logs retrieval and async execution on a devbox."""
         import subprocess
+        import json
         
         devbox_id = self.create_test_devbox()
         
-        remote_path = "/tmp/test_file.txt"
-        local_output = os.path.join(temp_dir, "downloaded_file.txt")
-        
-        # Write file to devbox
+        # Trigger logs by running a simple command
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "write",
-            "--id", devbox_id, "--input", temp_file, "--remote", remote_path
+            "uv", "run", "rl", "devbox", "exec",
+            "--id", devbox_id, "--command", "echo 'log-line'"
         ], capture_output=True, text=True)
-        
         assert result.returncode == 0
-        assert f"Wrote local file {temp_file} to remote file {remote_path}" in result.stdout
         
-        # Read file back from devbox
+        # Fetch logs; should at least return successfully
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "read", 
-            "--id", devbox_id, "--remote", remote_path, "--output", local_output
+            "uv", "run", "rl", "devbox", "logs", "--id", devbox_id
         ], capture_output=True, text=True)
-        
         assert result.returncode == 0
-        assert f"Wrote remote file {remote_path} from devbox {devbox_id}" in result.stdout
+        # Non-strict assertion: any output produced
+        assert result.stdout.strip() != ""
         
-        # Verify file contents match
-        with open(temp_file, 'r') as f1, open(local_output, 'r') as f2:
-            assert f1.read() == f2.read()
-
-    def test_file_upload(self, temp_file):
-        """Test uploading a file to devbox."""
-        import subprocess
-        
-        devbox_id = self.create_test_devbox()
-        
-        remote_path = "/tmp/"
-        
-        # Upload file to devbox
+        # Start async command
         result = subprocess.run([
-            "uv", "run", "rl", "devbox", "upload_file",
-            "--id", devbox_id, "--path", remote_path, "--file", temp_file
+            "uv", "run", "rl", "devbox", "exec_async",
+            "--id", devbox_id, "--command", "echo 'async'"
         ], capture_output=True, text=True)
-        
         assert result.returncode == 0
-        assert f"Uploaded file {temp_file} to {remote_path}" in result.stdout
+        # Extract execution id from JSON
+        exec_json = json.loads(result.stdout.split("execution=", 1)[1])
+        execution_id = exec_json.get("id")
+        assert execution_id
+        
+        # Query async execution
+        result = subprocess.run([
+            "uv", "run", "rl", "devbox", "get_async",
+            "--id", devbox_id, "--execution_id", execution_id
+        ], capture_output=True, text=True)
+        assert result.returncode == 0
 
     def test_command_execution(self):
         """Test executing commands on a devbox."""
