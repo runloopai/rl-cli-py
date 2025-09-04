@@ -84,7 +84,7 @@ async def execute(args) -> None:
     assert args.id is not None
     assert args.command is not None
     result = await runloop_api_client().devboxes.execute_sync(
-        id=args.id, command=args.command, shell_name=args.shell_name or NOT_GIVEN
+        id=args.id, command=args.command, shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN)
     )
     print("exec_result=", result)
 
@@ -93,7 +93,7 @@ async def execute_async(args) -> None:
     assert args.id is not None
     assert args.command is not None
     devbox = await runloop_api_client().devboxes.execute_async(
-        id=args.id, command=args.command, shell_name=args.shell_name or NOT_GIVEN
+        id=args.id, command=args.command, shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN)
     )
     print(f"execution={devbox.model_dump_json(indent=4)}")
 
@@ -104,7 +104,7 @@ async def get_async_exec(args) -> None:
     devbox = await runloop_api_client().devboxes.executions.retrieve(
         execution_id=args.execution_id,
         devbox_id=args.id,
-        shell_name=args.shell_name or NOT_GIVEN,
+        shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN),
     )
     print(f"execution={devbox.model_dump_json(indent=4)}")
 
@@ -212,9 +212,9 @@ async def ssh(args) -> None:
         raise ValueError("The 'id' argument is required and was not provided.")
 
     # Wait for devbox to be ready unless --no-wait is specified
-    if not args.no_wait:
+    if not getattr(args, "no_wait", False):
         print(f"Waiting for devbox {args.id} to be ready...")
-        if not await wait_for_ready(args.id, args.timeout, args.poll_interval):
+        if not await wait_for_ready(args.id, getattr(args, "timeout", 180), getattr(args, "poll_interval", 3)):
             print(f"Devbox {args.id} is not ready. Please try again later.")
             return
 

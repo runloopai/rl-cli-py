@@ -109,6 +109,11 @@ def setup_devbox_parser(subparsers):
         action="store_true",
         help="Run as root",
     )
+    create_parser.add_argument(
+        "--root",
+        action="store_true",
+        help="Run as root",
+    )
 
     # List
     list_parser = subparsers.add_parser("list", help="List devboxes")
@@ -130,7 +135,7 @@ def setup_devbox_parser(subparsers):
     list_parser.add_argument(
         "--limit",
         type=int,
-        help="Max results",
+        help="Limit the number of devboxes to return.",
         default=20,
     )
 
@@ -140,25 +145,37 @@ def setup_devbox_parser(subparsers):
     get_parser.add_argument("--id", required=True, help="Devbox ID")
 
     # Execute
-    execute_parser = subparsers.add_parser("execute", help="Execute command on devbox")
+    execute_parser = subparsers.add_parser("exec", help="Execute command on devbox")
     execute_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.execute(args)))
     execute_parser.add_argument("--id", required=True, help="Devbox ID")
     execute_parser.add_argument("--command", required=True, help="Command to execute")
-    execute_parser.add_argument("--shell_name", help="Shell name")
+    execute_parser.add_argument(
+        "--shell_name",
+        help="Name of the shell to use. If not specified, the default shell will be used.",
+        type=str,
+    )
 
     # Execute async
-    execute_async_parser = subparsers.add_parser("execute-async", help="Execute command asynchronously")
+    execute_async_parser = subparsers.add_parser("exec_async", help="Execute command asynchronously")
     execute_async_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.execute_async(args)))
     execute_async_parser.add_argument("--id", required=True, help="Devbox ID")
     execute_async_parser.add_argument("--command", required=True, help="Command to execute")
-    execute_async_parser.add_argument("--shell_name", help="Shell name")
+    execute_async_parser.add_argument(
+        "--shell_name",
+        help="Name of the shell to use. If not specified, the default shell will be used.",
+        type=str,
+    )
 
     # Get async execution
-    get_async_exec_parser = subparsers.add_parser("get-async-exec", help="Get async execution status")
+    get_async_exec_parser = subparsers.add_parser("get_async", help="Get async execution status")
     get_async_exec_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.get_async_exec(args)))
     get_async_exec_parser.add_argument("--id", required=True, help="Devbox ID")
     get_async_exec_parser.add_argument("--execution_id", required=True, help="Execution ID")
-    get_async_exec_parser.add_argument("--shell_name", help="Shell name")
+    get_async_exec_parser.add_argument(
+        "--shell_name",
+        help="Name of the shell to use. If not specified, the default shell will be used.",
+        type=str,
+    )
 
     # Logs
     logs_parser = subparsers.add_parser("logs", help="Get devbox logs")
@@ -184,69 +201,92 @@ def setup_devbox_parser(subparsers):
     ssh_parser = subparsers.add_parser("ssh", help="SSH into devbox")
     ssh_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.ssh(args)))
     ssh_parser.add_argument("--id", required=True, help="Devbox ID")
-    ssh_parser.add_argument("--no-wait", action="store_true", help="Don't wait for devbox to be ready")
-    ssh_parser.add_argument("--timeout", type=int, default=180, help="Timeout in seconds")
-    ssh_parser.add_argument("--poll-interval", type=int, default=3, help="Poll interval in seconds")
-    ssh_parser.add_argument("--config-only", action="store_true", help="Print SSH config only")
+    ssh_parser.add_argument(
+        "--config-only",
+        action="store_true",
+        default=False,
+        help="Only print ~/.ssh/config lines",
+    )
+    ssh_parser.add_argument(
+        "--no-wait",
+        action="store_true",
+        default=False,
+        help="Skip waiting for the devbox to be ready before SSHing",
+    )
+    ssh_parser.add_argument(
+        "--timeout",
+        type=int,
+        default=180,
+        help="Timeout in seconds for waiting for the devbox to be ready",
+    )
+    ssh_parser.add_argument(
+        "--poll-interval",
+        type=int,
+        default=3,
+        help="Interval in seconds between polling checks for the devbox status",
+    )
 
     # SCP
     scp_parser = subparsers.add_parser("scp", help="SCP files to/from devbox")
     scp_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.scp(args)))
+    scp_parser.add_argument("src", help="Source path")
+    scp_parser.add_argument("dst", help="Destination path")
     scp_parser.add_argument("--id", required=True, help="Devbox ID")
-    scp_parser.add_argument("--src", required=True, help="Source path")
-    scp_parser.add_argument("--dst", required=True, help="Destination path")
     scp_parser.add_argument("--scp-options", help="Additional SCP options")
 
     # Rsync
     rsync_parser = subparsers.add_parser("rsync", help="Rsync files to/from devbox")
     rsync_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.rsync(args)))
+    rsync_parser.add_argument("src", help="Source path")
+    rsync_parser.add_argument("dst", help="Destination path")
     rsync_parser.add_argument("--id", required=True, help="Devbox ID")
-    rsync_parser.add_argument("--src", required=True, help="Source path")
-    rsync_parser.add_argument("--dst", required=True, help="Destination path")
     rsync_parser.add_argument("--rsync-options", help="Additional rsync options")
 
     # Tunnel
     tunnel_parser = subparsers.add_parser("tunnel", help="Create SSH tunnel to devbox")
     tunnel_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.tunnel(args)))
     tunnel_parser.add_argument("--id", required=True, help="Devbox ID")
-    tunnel_parser.add_argument("--ports", required=True, help="Port mapping (local:remote)")
+    tunnel_parser.add_argument("ports", help="Port mapping local:remote")
 
-    # File operations
-    read_file_parser = subparsers.add_parser("read-file", help="Read file from devbox")
-    read_file_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.read_file(args)))
-    read_file_parser.add_argument("--id", required=True, help="Devbox ID")
-    read_file_parser.add_argument("--remote", required=True, help="Remote file path")
-    read_file_parser.add_argument("--output", required=True, help="Local output file")
+    # File operations: read/write using API
+    read_parser = subparsers.add_parser("read", help="Read a file from a devbox using the API")
+    read_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.read_file(args)))
+    read_parser.add_argument("--id", required=True, help="Devbox ID")
+    read_parser.add_argument("--remote", required=True, help="Remote file path to read from the devbox")
+    read_parser.add_argument("--output", required=True, help="Local file path to write the contents to")
 
-    write_file_parser = subparsers.add_parser("write-file", help="Write file to devbox")
-    write_file_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.write_file(args)))
-    write_file_parser.add_argument("--id", required=True, help="Devbox ID")
-    write_file_parser.add_argument("--input", required=True, help="Local input file")
-    write_file_parser.add_argument("--remote", required=True, help="Remote file path")
+    write_parser = subparsers.add_parser("write", help="Write a file to a devbox using the API")
+    write_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.write_file(args)))
+    write_parser.add_argument("--id", required=True, help="Devbox ID")
+    write_parser.add_argument("--input", required=True, help="Local file path to read contents from")
+    write_parser.add_argument("--remote", required=True, help="Remote file path to write to on the devbox")
 
-    upload_file_parser = subparsers.add_parser("upload-file", help="Upload file to devbox")
+    upload_file_parser = subparsers.add_parser("upload_file", help="Upload a file to a devbox")
     upload_file_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.upload_file(args)))
     upload_file_parser.add_argument("--id", required=True, help="Devbox ID")
-    upload_file_parser.add_argument("--file", required=True, help="File to upload")
-    upload_file_parser.add_argument("--path", required=True, help="Remote path")
+    upload_file_parser.add_argument("--path", required=True, help="Path where to save the file in the devbox")
+    upload_file_parser.add_argument("--file", required=True, help="Path to the local file to upload")
 
-    download_file_parser = subparsers.add_parser("download-file", help="Download file from devbox")
+    download_file_parser = subparsers.add_parser("download_file", help="Download a file from a devbox")
     download_file_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.download_file(args)))
     download_file_parser.add_argument("--id", required=True, help="Devbox ID")
-    download_file_parser.add_argument("--file-path", required=True, help="Remote file path")
-    download_file_parser.add_argument("--output-path", required=True, help="Local output path")
+    download_file_parser.add_argument("--file_path", required=True, help="Path to the file in the devbox")
+    download_file_parser.add_argument("--output_path", required=True, help="Local path where to save the downloaded file")
 
     # Snapshot operations
-    snapshot_parser = subparsers.add_parser("snapshot", help="Create devbox snapshot")
-    snapshot_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.snapshot(args)))
-    snapshot_parser.add_argument("--devbox-id", required=True, help="Devbox ID")
+    snapshot_parser = subparsers.add_parser("snapshot", help="Work with devbox snapshots")
+    snapshot_subparsers = snapshot_parser.add_subparsers(dest="subcommand")
 
-    get_snapshot_status_parser = subparsers.add_parser("get-snapshot-status", help="Get snapshot status")
-    get_snapshot_status_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.get_snapshot_status(args)))
-    get_snapshot_status_parser.add_argument("--snapshot-id", required=True, help="Snapshot ID")
+    snapshot_create_parser = snapshot_subparsers.add_parser("create", help="Create a snapshot of a running devbox (asynchronous)")
+    snapshot_create_parser.add_argument("--devbox_id", required=True, help="ID of the devbox to snapshot")
+    snapshot_create_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.snapshot(args)))
 
-    list_snapshots_parser = subparsers.add_parser("list-snapshots", help="List snapshots")
-    list_snapshots_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.list_snapshots(args)))
+    snapshot_status_parser = snapshot_subparsers.add_parser("status", help="Get the status of a snapshot operation")
+    snapshot_status_parser.add_argument("--snapshot_id", required=True, help="ID of the snapshot to check")
+    snapshot_status_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.get_snapshot_status(args)))
+
+    snapshot_list_parser = snapshot_subparsers.add_parser("list", help="List devbox snapshots")
+    snapshot_list_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.list_snapshots(args)))
 
 def setup_blueprint_parser(subparsers):
     """Setup the blueprint command parser."""
@@ -402,11 +442,6 @@ async def run():
     setup_invocation_parser(subparsers)
     setup_object_parser(subparsers)
 
-    # Hidden update check command
-    update_check_parser = subparsers.add_parser("_update_check", add_help=False)
-    update_check_parser.set_defaults(
-        func=lambda args: asyncio.create_task(update_check_command(args))
-    )
 
     args = parser.parse_args()
     if hasattr(args, "func"):

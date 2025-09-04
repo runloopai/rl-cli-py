@@ -8,8 +8,6 @@ A command line utility for interacting with runloop APIs.
 - [Table of Contents](#table-of-contents)
 - [Setup](#setup)
   - [Installation](#installation)
-  - [For developers](#for-developers)
-  - [Running Tests](#running-tests)
 - [Quick reference](#quick-reference)
   - [Devbox](#devbox)
     - [Create a devbox and run a single command](#create-a-devbox-and-run-a-single-command)
@@ -60,6 +58,8 @@ A command line utility for interacting with runloop APIs.
     - [Get Object Details](#get-object-details)
     - [Delete an Object](#delete-an-object)
     - [Object Content Types](#object-content-types)
+  - [For developers](#for-developers)
+  - [Running Tests](#running-tests)
 
 # Setup
 
@@ -68,72 +68,6 @@ A command line utility for interacting with runloop APIs.
 ```bash
 uv tool install rl-cli
 ```
-
-## For developers
-
-```commandline
-# Clone the repo
-mkdir -p ~/source/ && cd ~/source/
-git clone https://github.com/runloopai/rl-cli.git
-cd rl-cli/
-
-# Setup the venv and dev tools
-python3 -m venv .venv && source .venv/bin/activate && pip install -r dev-requirements.txt
-
-# Install to your venv with flit
-# Use 'which python3' to find your system python
-flit install --symlink --python </path/to/system/python>
-
-# Install to your venv using pip
-pip install rl-cli
-```
-
-## Running Tests
-
-The project uses pytest for testing. The test suite includes unit tests and an end-to-end integration test for object upload/download.
-
-```bash
-# Install dev dependencies (choose one)
-uv pip install -e ".[dev]"
-# or
-pip install -e ".[dev]"
-
-# Run all tests except the integration tests
-pytest -q -k "not integration"
-
-# Run only unit tests in verbose mode (equivalent to excluding integration)
-pytest -v -k "not integration"
-
-# Run only the integration tests (requires an API key)
-RUNLOOP_API_KEY=<your-api-key> RUNLOOP_ENV=prod pytest -q tests/integration/test_object_e2e.py
-
-# Run a specific unit test file
-pytest -v tests/test_cli.py
-
-# Run a specific test function
-pytest -v tests/test_cli.py::test_devbox_list
-
-# Run tests with coverage
-pytest -v --cov=rl_cli
-
-# Run tests in parallel (faster)
-pytest -v -n auto
-```
-
-Notes:
-
-- The integration test in `tests/integration/test_object_e2e.py` exercises live upload/download. It requires `RUNLOOP_API_KEY` in the environment. Set `RUNLOOP_ENV` to `prod` (or `dev` if your key targets dev).
-- To run the full suite including integration, export your key once, then run pytest:
-
-```bash
-export RUNLOOP_API_KEY=<your-api-key>
-export RUNLOOP_ENV=prod
-pytest -q
-```
-
-CI:
-
-- A GitHub Actions workflow runs the integration test using a secret API key. Ensure the repository secret is configured (see `.github/workflows/cli-integration.yml`).
 
 # Quick reference
 
@@ -524,3 +458,69 @@ The object create API supports the following content types:
 - `tgz`
 
 The CLI maps file extensions to these values during upload. If a file doesn't match any rule, it is marked as `unspecified`.
+
+## For developers
+
+```commandline
+# Clone the repo
+mkdir -p ~/source/ && cd ~/source/
+git clone https://github.com/runloopai/rl-cli.git
+cd rl-cli/
+
+# Setup the venv and dev tools
+python3 -m venv .venv && source .venv/bin/activate && pip install -r dev-requirements.txt
+
+# Install to your venv with flit
+# Use 'which python3' to find your system python
+flit install --symlink --python </path/to/system/python>
+
+# Install to your venv using pip
+pip install rl-cli
+```
+
+## Running Tests
+
+The project uses pytest for testing. The test suite includes unit tests and an end-to-end integration test for object upload/download.
+
+```bash
+# Install dev dependencies (choose one)
+uv pip install -e ".[dev]"
+# or
+pip install -e ".[dev]"
+
+# Run all tests except the integration tests
+pytest -q -k "not integration"
+
+# Run only unit tests in verbose mode (equivalent to excluding integration)
+pytest -v -k "not integration"
+
+# Run only the integration tests (requires an API key)
+RUNLOOP_API_KEY=<your-api-key> RUNLOOP_ENV=prod pytest -q tests/integration/test_object_e2e.py
+
+# Run a specific unit test file
+pytest -v tests/test_cli.py
+
+# Run a specific test function
+pytest -v tests/test_cli.py::test_devbox_list
+
+# Run tests with coverage
+pytest -v --cov=rl_cli
+
+# Run tests in parallel (faster)
+pytest -v -n auto
+```
+
+Notes:
+
+- The integration test in `tests/integration/test_object_e2e.py` exercises live upload/download. It requires `RUNLOOP_API_KEY` in the environment. Set `RUNLOOP_ENV` to `prod` (or `dev` if your key targets dev).
+- To run the full suite including integration, export your key once, then run pytest:
+
+```bash
+export RUNLOOP_API_KEY=<your-api-key>
+export RUNLOOP_ENV=prod
+pytest -q
+```
+
+CI:
+
+- A GitHub Actions workflow runs the integration test using a secret API key. Ensure the repository secret is configured (see `.github/workflows/cli-integration.yml`).
