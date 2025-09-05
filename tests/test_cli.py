@@ -27,13 +27,11 @@ async def test_devbox_list(capsys):
     # Create mock devboxes
     mock_devboxes = AsyncMock()
     
-    # Create mock paginator
-    async def mock_aiter(self):
-        yield mock_devbox
+    # Create mock response that matches the actual API structure
+    class MockResponse:
+        devboxes = [mock_devbox]
     
-    mock_paginator = AsyncMock()
-    mock_paginator.__aiter__ = mock_aiter
-    mock_devboxes.list = AsyncMock(return_value=mock_paginator)
+    mock_devboxes.list = AsyncMock(return_value=MockResponse())
     mock_api_client.devboxes = mock_devboxes
     
     # Clear the cache to ensure we get a fresh client
