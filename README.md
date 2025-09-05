@@ -255,7 +255,7 @@ rl devbox scp local_file.txt :remote_file.txt --id <devbox_id>
 rl devbox scp :remote_file.txt local_file.txt --id <devbox_id>
 
 # Additional options
-rl devbox scp --scp-options "-r" local_dir :remote_dir --id <devbox_id>
+rl devbox scp --scp-options="-r" local_dir :remote_dir --id <devbox_id>
 ```
 
 #### Rsync
@@ -268,7 +268,7 @@ rl devbox rsync local_dir :remote_dir --id <devbox_id>
 rl devbox rsync :remote_dir local_dir --id <devbox_id>
 
 # Additional options
-rl devbox rsync --rsync-options "-avz" local_dir :remote_dir --id <devbox_id>
+rl devbox rsync --rsync-options="-avz" local_dir :remote_dir --id <devbox_id>
 ```
 
 ### Port Forwarding
