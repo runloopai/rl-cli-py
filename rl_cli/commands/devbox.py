@@ -105,7 +105,6 @@ async def get_async_exec(args) -> None:
     devbox = await runloop_api_client().devboxes.executions.retrieve(
         execution_id=args.execution_id,
         devbox_id=args.id,
-        shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN),
     )
     print(f"execution={devbox.model_dump_json(indent=4)}")
 

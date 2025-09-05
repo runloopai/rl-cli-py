@@ -153,7 +153,6 @@ def setup_devbox_parser(subparsers):
     get_async_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.get_async_exec(args)))
     get_async_parser.add_argument("--id", required=True, help="Devbox ID")
     get_async_parser.add_argument("--execution_id", required=True, help="Execution ID")
-    get_async_parser.add_argument("--shell_name", required=False, help="Shell name to use (optional)")
 
     # Logs
     logs_parser = subparsers.add_parser("logs", help="View devbox logs")

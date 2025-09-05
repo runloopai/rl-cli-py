@@ -178,7 +178,6 @@ async def test_get_async_exec():
         mock_api_client.devboxes.executions.retrieve.assert_called_once_with(
             execution_id="exec-123",
             devbox_id="test-id",
-            shell_name=NOT_GIVEN,
         )
         assert mock_print.call_args[0][0].startswith("execution=")
 
