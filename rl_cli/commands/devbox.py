@@ -1,11 +1,13 @@
 """Devbox command group implementation."""
 import asyncio
 import datetime
+import json
 import os
 import shlex
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from runloop_api_client import NOT_GIVEN
@@ -64,11 +66,12 @@ async def create(args) -> None:
 async def list_devboxes(args) -> None:
     """List all devboxes."""
     extra_query = {"status": args.status} if args.status is not None else None
-    paginator = await runloop_api_client().devboxes.list(
+    result = await runloop_api_client().devboxes.list(
         extra_query=extra_query,
         limit=args.limit,
     )
-    async for devbox in paginator:
+    # Iterate over the devboxes in the result, not the paginator
+    for devbox in result.devboxes:
         print(f"devbox={devbox.model_dump_json(indent=4)}")
 
 async def get(args) -> None:
@@ -82,7 +85,7 @@ async def execute(args) -> None:
     assert args.id is not None
     assert args.command is not None
     result = await runloop_api_client().devboxes.execute_sync(
-        id=args.id, command=args.command, shell_name=args.shell_name or NOT_GIVEN
+        id=args.id, command=args.command, shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN)
     )
     print("exec_result=", result)
 
@@ -91,7 +94,7 @@ async def execute_async(args) -> None:
     assert args.id is not None
     assert args.command is not None
     devbox = await runloop_api_client().devboxes.execute_async(
-        id=args.id, command=args.command, shell_name=args.shell_name or NOT_GIVEN
+        id=args.id, command=args.command, shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN)
     )
     print(f"execution={devbox.model_dump_json(indent=4)}")
 
@@ -102,7 +105,6 @@ async def get_async_exec(args) -> None:
     devbox = await runloop_api_client().devboxes.executions.retrieve(
         execution_id=args.execution_id,
         devbox_id=args.id,
-        shell_name=args.shell_name or NOT_GIVEN,
     )
     print(f"execution={devbox.model_dump_json(indent=4)}")
 
@@ -210,9 +212,9 @@ async def ssh(args) -> None:
         raise ValueError("The 'id' argument is required and was not provided.")
 
     # Wait for devbox to be ready unless --no-wait is specified
-    if not args.no_wait:
+    if not getattr(args, "no_wait", False):
         print(f"Waiting for devbox {args.id} to be ready...")
-        if not await wait_for_ready(args.id, args.timeout, args.poll_interval):
+        if not await wait_for_ready(args.id, getattr(args, "timeout", 180), getattr(args, "poll_interval", 3)):
             print(f"Devbox {args.id} is not ready. Please try again later.")
             return
 
@@ -387,6 +389,14 @@ async def tunnel(args) -> None:
         sys.exit(e.returncode)
 
 # File operations
+async def devbox_read(args) -> None:
+    """Compatibility wrapper: read a file from a devbox (API)."""
+    await read_file(args)
+
+async def devbox_write(args) -> None:
+    """Compatibility wrapper: write a file to a devbox (API)."""
+    await write_file(args)
+
 async def read_file(args) -> None:
     """Read a file from a devbox."""
     assert args.id is not None

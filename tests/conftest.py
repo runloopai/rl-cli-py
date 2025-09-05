@@ -3,6 +3,10 @@
 import os
 from unittest.mock import patch
 import pytest
+from dotenv import load_dotenv
+
+# Load .env file if it exists
+load_dotenv()
 
 @pytest.fixture(autouse=True)
 def mock_env(request):
