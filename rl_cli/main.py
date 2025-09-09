@@ -248,35 +248,28 @@ def setup_blueprint_parser(subparsers):
     parser = subparsers.add_parser("blueprint", help="Manage blueprints")
     subparsers = parser.add_subparsers(dest="subcommand")
 
-    # List
-    list_parser = subparsers.add_parser("list", help="List blueprints")
-    list_parser.add_argument(
-        "--name", help="Blueprint name.", type=str, required=False
-    )
-    list_parser.set_defaults(func=lambda args: asyncio.create_task(blueprint.list_blueprints(args)))
-
     # Create
     create_parser = subparsers.add_parser("create", help="Create blueprint")
     create_parser.set_defaults(func=lambda args: asyncio.create_task(blueprint.create(args)))
     create_parser.add_argument("--name", required=True, help="Blueprint name")
     create_parser.add_argument(
         "--system_setup_commands",
-        help="System setup commands",
+        help="System initialization commands (can be specified multiple times)",
         action="append",
     )
-    create_parser.add_argument("--dockerfile", help="Dockerfile contents")
-    create_parser.add_argument("--dockerfile_path", help="Dockerfile path")
+    create_parser.add_argument("--dockerfile", help="Dockerfile contents as text")
+    create_parser.add_argument("--dockerfile_path", help="Path to Dockerfile")
     create_parser.add_argument(
         "--resources",
         type=str,
-        help="Resource size",
+        help="Resource specification (SMALL/MEDIUM/LARGE/X_LARGE/XX_LARGE)",
         choices=["X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE", "XX_LARGE"],
     )
     create_parser.add_argument(
         "--available_ports",
         type=int,
-        nargs="+",
-        help="Available ports",
+        action="append",
+        help="List of available ports (can be specified multiple times)",
     )
     create_parser.add_argument(
         "--architecture",
@@ -290,7 +283,33 @@ def setup_blueprint_parser(subparsers):
         help="Run as root",
     )
 
-    # ... Add other blueprint subcommands similarly ...
+    # Preview
+    preview_parser = subparsers.add_parser("preview", help="Preview Blueprint")
+    preview_parser.set_defaults(func=lambda args: asyncio.create_task(blueprint.preview(args)))
+    preview_parser.add_argument("--name", required=True, help="Blueprint name")
+    preview_parser.add_argument("--dockerfile", help="Dockerfile contents as text")
+    preview_parser.add_argument(
+        "--system_setup_commands",
+        help="System initialization commands (can be specified multiple times)",
+        action="append",
+    )
+
+    # List
+    list_parser = subparsers.add_parser("list", help="List blueprints")
+    list_parser.add_argument(
+        "--name", help="Filter by blueprint name", type=str, required=False
+    )
+    list_parser.set_defaults(func=lambda args: asyncio.create_task(blueprint.list_blueprints(args)))
+
+    # Get
+    get_parser = subparsers.add_parser("get", help="Get Blueprint Details")
+    get_parser.set_defaults(func=lambda args: asyncio.create_task(blueprint.get(args)))
+    get_parser.add_argument("--id", required=True, help="Blueprint ID")
+
+    # Logs
+    logs_parser = subparsers.add_parser("logs", help="View Blueprint Logs")
+    logs_parser.set_defaults(func=lambda args: asyncio.create_task(blueprint.logs(args)))
+    logs_parser.add_argument("--id", required=True, help="Blueprint ID")
 
 def setup_invocation_parser(subparsers):
     """Setup the invocation command parser."""
