@@ -27,6 +27,7 @@ dev = [
   "pytest-timeout",
   "pytest-cov",
   "pytest-xdist",
+  "pytest-sugar",
   "ruff",
 ]
 
