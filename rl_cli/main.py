@@ -12,7 +12,7 @@ from .utils import (
     _parse_env_arg,
     _parse_code_mounts,
 )
-from .commands import devbox, blueprint, invocation, object
+from .commands import devbox, blueprint, object
 
 def check_for_updates():
     """Check for available updates."""
@@ -290,19 +290,27 @@ def setup_blueprint_parser(subparsers):
         help="Run as root",
     )
 
-    # ... Add other blueprint subcommands similarly ...
-
-def setup_invocation_parser(subparsers):
-    """Setup the invocation command parser."""
-    parser = subparsers.add_parser("invocation", help="Manage invocations")
-    subparsers = parser.add_subparsers(dest="subcommand")
+    # Preview
+    preview_parser = subparsers.add_parser("preview", help="Preview blueprint before creation")
+    preview_parser.set_defaults(func=lambda args: asyncio.create_task(blueprint.preview(args)))
+    preview_parser.add_argument("--name", required=True, help="Blueprint name")
+    preview_parser.add_argument(
+        "--system_setup_commands",
+        help="System setup commands",
+        action="append",
+    )
+    preview_parser.add_argument("--dockerfile", help="Dockerfile contents")
 
     # Get
-    get_parser = subparsers.add_parser("get", help="Get invocation")
-    get_parser.set_defaults(func=lambda args: asyncio.create_task(invocation.get(args)))
-    get_parser.add_argument("--id", required=True, help="Invocation ID")
+    get_parser = subparsers.add_parser("get", help="Get blueprint details")
+    get_parser.set_defaults(func=lambda args: asyncio.create_task(blueprint.get(args)))
+    get_parser.add_argument("--id", required=True, help="Blueprint ID")
 
-    # ... Add other invocation subcommands similarly ...
+    # Logs
+    logs_parser = subparsers.add_parser("logs", help="Get blueprint build logs")
+    logs_parser.set_defaults(func=lambda args: asyncio.create_task(blueprint.logs(args)))
+    logs_parser.add_argument("--id", required=True, help="Blueprint ID")
+
 
 def setup_object_parser(subparsers):
     """Setup the object command parser."""
@@ -394,14 +402,7 @@ async def run():
     # Setup command parsers
     setup_devbox_parser(subparsers)
     setup_blueprint_parser(subparsers)
-    setup_invocation_parser(subparsers)
     setup_object_parser(subparsers)
-
-    # Hidden update check command
-    update_check_parser = subparsers.add_parser("_update_check", add_help=False)
-    update_check_parser.set_defaults(
-        func=lambda args: asyncio.create_task(update_check_command(args))
-    )
 
     args = parser.parse_args()
     if hasattr(args, "func"):

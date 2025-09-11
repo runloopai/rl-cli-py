@@ -33,6 +33,7 @@ A command line utility for interacting with runloop APIs.
     - [File Transfer](#file-transfer)
       - [SCP](#scp)
       - [Rsync](#rsync)
+      - [File Operations via API](#file-operations-via-api)
     - [Port Forwarding](#port-forwarding)
     - [Devbox Management](#devbox-management)
       - [Suspend Devbox](#suspend-devbox)
@@ -49,8 +50,6 @@ A command line utility for interacting with runloop APIs.
     - [Create Snapshot (Asynchronous)](#create-snapshot-asynchronous)
     - [Get Snapshot Status](#get-snapshot-status)
     - [List Snapshots](#list-snapshots)
-  - [Invocation Commands](#invocation-commands)
-    - [Get Invocation Details](#get-invocation-details)
   - [Object Commands](#object-commands)
     - [Upload an Object](#upload-an-object)
     - [Download an Object](#download-an-object)
@@ -198,6 +197,8 @@ Options:
   --idle_action        Action to take when devbox becomes idle (shutdown/suspend)
   --prebuilt           Use a non-standard prebuilt image
   --resources          Devbox resource specification (SMALL/MEDIUM/LARGE/X_LARGE/XX_LARGE)
+  --architecture       Architecture (arm64/x86_64)
+  --root               Run as root
 ```
 
 ### List Devboxes
@@ -271,6 +272,22 @@ rl devbox rsync :remote_dir local_dir --id <devbox_id>
 rl devbox rsync --rsync-options="-avz" local_dir :remote_dir --id <devbox_id>
 ```
 
+#### File Operations via API
+
+```commandline
+# Read a file from devbox to local file
+rl devbox read --id <devbox_id> --remote /path/to/remote/file --output /path/to/local/file
+
+# Write a local file to devbox
+rl devbox write --id <devbox_id> --input /path/to/local/file --remote /path/to/remote/file
+
+# Upload a file to devbox
+rl devbox upload_file --id <devbox_id> --file /path/to/local/file --path /path/to/remote/file
+
+# Download a file from devbox
+rl devbox download_file --id <devbox_id> --file_path /path/to/remote/file --output_path /path/to/local/file
+```
+
 ### Port Forwarding
 
 ```commandline
@@ -317,6 +334,8 @@ Options:
   --dockerfile_path   Path to Dockerfile
   --resources         Resource specification (SMALL/MEDIUM/LARGE/X_LARGE/XX_LARGE)
   --available_ports   List of available ports (can be specified multiple times)
+  --architecture      Architecture (arm64/x86_64)
+  --root              Run as root
 ```
 
 ### Preview Blueprint
@@ -369,14 +388,6 @@ rl devbox snapshot status --snapshot_id <snapshot_id>
 
 ```commandline
 rl devbox snapshot list
-```
-
-## Invocation Commands
-
-### Get Invocation Details
-
-```commandline
-rl invocation get --id <invocation_id>
 ```
 
 ## Object Commands
@@ -467,15 +478,7 @@ mkdir -p ~/source/ && cd ~/source/
 git clone https://github.com/runloopai/rl-cli.git
 cd rl-cli/
 
-# Setup the venv and dev tools
-python3 -m venv .venv && source .venv/bin/activate && pip install -r dev-requirements.txt
-
-# Install to your venv with flit
-# Use 'which python3' to find your system python
-flit install --symlink --python </path/to/system/python>
-
-# Install to your venv using pip
-pip install rl-cli
+pip install -e ".[dev]"
 ```
 
 ## Running Tests
