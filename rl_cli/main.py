@@ -404,12 +404,6 @@ async def run():
     setup_blueprint_parser(subparsers)
     setup_object_parser(subparsers)
 
-    # Hidden update check command
-    update_check_parser = subparsers.add_parser("_update_check", add_help=False)
-    update_check_parser.set_defaults(
-        func=lambda args: asyncio.create_task(update_check_command(args))
-    )
-
     args = parser.parse_args()
     if hasattr(args, "func"):
         if not os.getenv("RUNLOOP_API_KEY"):
