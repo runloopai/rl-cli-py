@@ -11,6 +11,7 @@ from .utils import (
     should_check_for_updates,
     _parse_env_arg,
     _parse_code_mounts,
+    _parse_user
 )
 from .commands import devbox, blueprint, object
 
@@ -103,6 +104,12 @@ def setup_devbox_parser(subparsers):
         "--root",
         action="store_true",
         help="Run as root",
+    )
+    create_parser.add_argument(
+        "--user",
+        type=_parse_user,
+        metavar="USER:UID",
+        help="Run as this user"
     )
 
     # List
@@ -289,6 +296,12 @@ def setup_blueprint_parser(subparsers):
         action="store_true",
         help="Run as root",
     )
+    create_parser.add_argument(
+        "--user",
+        type=_parse_user,
+        metavar="USER:UID",
+        help="Run as this user"
+    )
 
     # Preview
     preview_parser = subparsers.add_parser("preview", help="Preview blueprint before creation")
@@ -391,6 +404,7 @@ def setup_object_parser(subparsers):
     delete_parser = subparsers.add_parser("delete", help="Delete an object (irreversible)")
     delete_parser.set_defaults(func=lambda args: asyncio.create_task(object.delete(args)))
     delete_parser.add_argument("--id", required=True, help="Object ID to delete")
+
 
 async def run():
     """Main entry point."""

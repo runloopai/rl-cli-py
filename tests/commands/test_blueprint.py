@@ -40,6 +40,7 @@ async def test_create_blueprint():
         args.available_ports = None
         args.architecture = "arm64"
         args.root = True
+        args.user = None
 
         await blueprint.create(args)
 
@@ -70,6 +71,7 @@ async def test_create_blueprint_from_file():
         args.available_ports = None
         args.architecture = "arm64"
         args.root = True
+        args.user = None
 
         await blueprint.create(args)
 

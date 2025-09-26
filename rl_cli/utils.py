@@ -1,4 +1,5 @@
 """Utility functions for rl-cli."""
+import argparse
 import datetime
 import functools
 import json
@@ -10,6 +11,8 @@ from pathlib import Path
 from runloop_api_client import AsyncRunloop, NOT_GIVEN, NotGiven
 from runloop_api_client._types import Query
 from runloop_api_client.types.shared_params import CodeMountParameters
+from runloop_api_client.types.shared_params.launch_parameters import UserParameters
+
 
 def base_url() -> str:
     """Get the base URL for the Runloop API."""
@@ -79,3 +82,14 @@ def _parse_code_mounts(arg) -> CodeMountParameters | None:
     if arg is None:
         return None
     return CodeMountParameters(**json.loads(arg))
+
+def _parse_user(arg) -> UserParameters:
+    """Parse user of the format <username:uid>."""
+    if arg:
+        tokens = arg.split(':')
+        if len(tokens) == 2:
+            try:
+                return UserParameters(username=tokens[0], uid=tokens[1])
+            except ValueError:
+                pass
+    raise argparse.ArgumentTypeError("invalid user, expected '<username>:<id>'")

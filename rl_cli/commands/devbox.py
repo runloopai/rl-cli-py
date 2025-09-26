@@ -44,7 +44,14 @@ async def create(args) -> None:
             "Architecture cannot be specified when using a blueprint (blueprint_id or blueprint_name)"
         )
 
-    user_parameters = UserParameters(username="root", uid=0) if args.root else None
+    if args.user and args.root:
+        raise ValueError("Only one of --user or --root can be specified")
+    elif args.user:
+        user_parameters = args.user
+    elif args.root:
+        user_parameters = UserParameters(username="root", uid=0)
+    else:
+        user_parameters = None
 
     devbox = await runloop_api_client().devboxes.create(
         entrypoint=args.entrypoint,
