@@ -199,6 +199,7 @@ Options:
   --resources          Devbox resource specification (SMALL/MEDIUM/LARGE/X_LARGE/XX_LARGE)
   --architecture       Architecture (arm64/x86_64)
   --root               Run as root
+  --user               Run as this user (USER:UID)
 ```
 
 ### List Devboxes
@@ -336,6 +337,7 @@ Options:
   --available_ports   List of available ports (can be specified multiple times)
   --architecture      Architecture (arm64/x86_64)
   --root              Run as root
+  --user              Run as this user (USER:UID)
 ```
 
 ### Preview Blueprint

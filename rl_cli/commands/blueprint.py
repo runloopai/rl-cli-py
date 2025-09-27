@@ -11,11 +11,20 @@ async def create(args) -> None:
         with open(args.dockerfile_path) as f:
             dockerfile_contents = f.read()
 
+    if args.user and args.root:
+        raise ValueError("Only one of --user or --root can be specified")
+    elif args.user:
+        user_parameters = args.user
+    elif args.root:
+        user_parameters = UserParameters(username="root", uid=0)
+    else:
+        user_parameters = None
+    
     launch_parameters = LaunchParameters(
         resource_size_request=args.resources,
         available_ports=args.available_ports,
         architecture=args.architecture,
-        user_parameters=UserParameters(username="root", uid=0) if args.root else None,
+        user_parameters=user_parameters,
     )
 
     blueprint = await runloop_api_client().blueprints.create(

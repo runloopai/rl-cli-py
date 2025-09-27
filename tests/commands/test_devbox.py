@@ -43,6 +43,7 @@ async def test_create_devbox():
         args.blueprint_id = None
         args.blueprint_name = None
         args.root = True
+        args.user = None
         args.entrypoint = "echo hello"
         args.env_vars = None
         args.code_mounts = None
