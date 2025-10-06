@@ -1,8 +1,10 @@
 """Blueprint command group implementation."""
+
 from runloop_api_client.types.shared_params import LaunchParameters
 from runloop_api_client.types.shared_params.launch_parameters import UserParameters
 
 from ..utils import runloop_api_client
+
 
 async def create(args) -> None:
     """Create a new blueprint."""
@@ -19,7 +21,7 @@ async def create(args) -> None:
         user_parameters = UserParameters(username="root", uid=0)
     else:
         user_parameters = None
-    
+
     launch_parameters = LaunchParameters(
         resource_size_request=args.resources,
         available_ports=args.available_ports,
@@ -35,6 +37,7 @@ async def create(args) -> None:
     )
     print(f"created blueprint={blueprint.model_dump_json(indent=4)}")
 
+
 async def preview(args) -> None:
     """Preview a blueprint before creation."""
     blueprint = await runloop_api_client().blueprints.preview(
@@ -44,6 +47,7 @@ async def preview(args) -> None:
     )
     print(f"preview blueprint={blueprint.model_dump_json(indent=4)}")
 
+
 async def list_blueprints(args) -> None:
     """List all blueprints."""
     blueprints = await runloop_api_client().blueprints.list(name=args.name)
@@ -52,11 +56,13 @@ async def list_blueprints(args) -> None:
         for blueprint in blueprints.blueprints or []
     ]
 
+
 async def get(args) -> None:
     """Get a specific blueprint."""
     assert args.id is not None
     blueprint = await runloop_api_client().blueprints.retrieve(args.id)
     print(f"blueprint={blueprint.model_dump_json(indent=4)}")
+
 
 async def logs(args) -> None:
     """Get blueprint build logs."""

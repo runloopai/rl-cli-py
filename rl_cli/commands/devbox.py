@@ -1,4 +1,5 @@
 """Devbox command group implementation."""
+
 import asyncio
 import datetime
 import json
@@ -8,7 +9,6 @@ import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 from runloop_api_client import NOT_GIVEN
 from runloop_api_client.types.shared_params import (
@@ -20,17 +20,19 @@ from runloop_api_client.types.shared_params.launch_parameters import UserParamet
 
 from ..utils import runloop_api_client, ssh_url, _args_to_dict
 
+
 def _parse_code_mounts(arg) -> CodeMountParameters | None:
     """Parse code mounts argument."""
     if arg is None:
         return None
     return CodeMountParameters(**json.loads(arg))
 
+
 async def create(args) -> None:
     """Create a new devbox."""
     if (args.idle_time is not None) != (args.idle_action is not None):
         raise ValueError("If either idle_time or idle_action is set, both must be set")
-    
+
     idle_config: AfterIdle | None = None
     if args.idle_time is not None and args.idle_action is not None:
         idle_config = AfterIdle(
@@ -70,6 +72,7 @@ async def create(args) -> None:
     )
     print(f"create devbox={devbox.model_dump_json(indent=4)}")
 
+
 async def list_devboxes(args) -> None:
     """List all devboxes."""
     extra_query = {"status": args.status} if args.status is not None else None
@@ -81,29 +84,37 @@ async def list_devboxes(args) -> None:
     for devbox in result.devboxes:
         print(f"devbox={devbox.model_dump_json(indent=4)}")
 
+
 async def get(args) -> None:
     """Get a specific devbox."""
     assert args.id is not None
     devbox = await runloop_api_client().devboxes.retrieve(args.id)
     print(f"devbox={devbox.model_dump_json(indent=4)}")
 
+
 async def execute(args) -> None:
     """Execute a command on a devbox."""
     assert args.id is not None
     assert args.command is not None
     result = await runloop_api_client().devboxes.execute_sync(
-        id=args.id, command=args.command, shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN)
+        id=args.id,
+        command=args.command,
+        shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN),
     )
     print("exec_result=", result)
+
 
 async def execute_async(args) -> None:
     """Execute a command asynchronously on a devbox."""
     assert args.id is not None
     assert args.command is not None
     devbox = await runloop_api_client().devboxes.execute_async(
-        id=args.id, command=args.command, shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN)
+        id=args.id,
+        command=args.command,
+        shell_name=(getattr(args, "shell_name", None) or NOT_GIVEN),
     )
     print(f"execution={devbox.model_dump_json(indent=4)}")
+
 
 async def get_async_exec(args) -> None:
     """Get the status of an async execution."""
@@ -114,6 +125,7 @@ async def get_async_exec(args) -> None:
         devbox_id=args.id,
     )
     print(f"execution={devbox.model_dump_json(indent=4)}")
+
 
 async def logs(args) -> None:
     """Get devbox logs."""
@@ -137,11 +149,13 @@ async def logs(args) -> None:
         else:
             print(f"{time_str}{source}  {log}")
 
+
 async def suspend(args) -> None:
     """Suspend a devbox."""
     assert args.id is not None
     devbox = await runloop_api_client().devboxes.suspend(args.id)
     print(f"devbox={devbox.model_dump_json(indent=4)}")
+
 
 async def resume(args) -> None:
     """Resume a suspended devbox."""
@@ -149,11 +163,13 @@ async def resume(args) -> None:
     devbox = await runloop_api_client().devboxes.resume(args.id)
     print(f"devbox={devbox.model_dump_json(indent=4)}")
 
+
 async def shutdown(args) -> None:
     """Shutdown a devbox."""
     assert args.id is not None
     devbox = await runloop_api_client().devboxes.shutdown(args.id)
     print(f"devbox={devbox.model_dump_json(indent=4)}")
+
 
 # SSH related functions
 async def get_ssh_key(devbox_id: str) -> tuple[str, str, str] | None:
@@ -176,14 +192,17 @@ async def get_ssh_key(devbox_id: str) -> tuple[str, str, str] | None:
 
     return keyfile_path, key, url
 
-async def wait_for_ready(devbox_id: str, timeout_seconds: int = 180, poll_interval_seconds: int = 3) -> bool:
+
+async def wait_for_ready(
+    devbox_id: str, timeout_seconds: int = 180, poll_interval_seconds: int = 3
+) -> bool:
     """Wait for a devbox to be ready."""
     start_time = time.time()
-    
+
     while True:
         try:
             devbox = await runloop_api_client().devboxes.retrieve(devbox_id)
-            
+
             if devbox.status == "running":
                 print(f"Devbox {devbox_id} is ready!")
                 return True
@@ -196,22 +215,31 @@ async def wait_for_ready(devbox_id: str, timeout_seconds: int = 180, poll_interv
             else:
                 elapsed = time.time() - start_time
                 remaining = timeout_seconds - elapsed
-                print(f"Devbox {devbox_id} is still {devbox.status}... (elapsed: {elapsed:.0f}s, remaining: {remaining:.0f}s)")
-                
+                print(
+                    f"Devbox {devbox_id} is still {devbox.status}... (elapsed: {elapsed:.0f}s, remaining: {remaining:.0f}s)"
+                )
+
                 if elapsed >= timeout_seconds:
-                    print(f"Timeout waiting for devbox {devbox_id} to be ready after {timeout_seconds} seconds")
+                    print(
+                        f"Timeout waiting for devbox {devbox_id} to be ready after {timeout_seconds} seconds"
+                    )
                     return False
-                
+
                 await asyncio.sleep(poll_interval_seconds)
-                
+
         except Exception as e:
             elapsed = time.time() - start_time
             if elapsed >= timeout_seconds:
-                print(f"Timeout waiting for devbox {devbox_id} to be ready after {timeout_seconds} seconds (error: {e})")
+                print(
+                    f"Timeout waiting for devbox {devbox_id} to be ready after {timeout_seconds} seconds (error: {e})"
+                )
                 return False
-            
-            print(f"Error checking devbox status: {e}, retrying in {poll_interval_seconds} seconds...")
+
+            print(
+                f"Error checking devbox status: {e}, retrying in {poll_interval_seconds} seconds..."
+            )
             await asyncio.sleep(poll_interval_seconds)
+
 
 async def ssh(args) -> None:
     """SSH into a devbox."""
@@ -221,7 +249,9 @@ async def ssh(args) -> None:
     # Wait for devbox to be ready unless --no-wait is specified
     if not getattr(args, "no_wait", False):
         print(f"Waiting for devbox {args.id} to be ready...")
-        if not await wait_for_ready(args.id, getattr(args, "timeout", 180), getattr(args, "poll_interval", 3)):
+        if not await wait_for_ready(
+            args.id, getattr(args, "timeout", 180), getattr(args, "poll_interval", 3)
+        ):
             print(f"Devbox {args.id} is not ready. Please try again later.")
             return
 
@@ -263,6 +293,7 @@ Host {args.id}
         f"{user}@{url}",
     ]
     subprocess.run(command)
+
 
 async def scp(args) -> None:
     """SCP files to/from a devbox."""
@@ -307,6 +338,7 @@ async def scp(args) -> None:
         print(f"SCP command failed with exit code {e.returncode}")
         sys.exit(e.returncode)
 
+
 async def rsync(args) -> None:
     """Rsync files to/from a devbox."""
     assert args.id is not None
@@ -348,6 +380,7 @@ async def rsync(args) -> None:
     except subprocess.CalledProcessError as e:
         print(f"Rsync command failed with exit code {e.returncode}")
         sys.exit(e.returncode)
+
 
 async def tunnel(args) -> None:
     """Create an SSH tunnel to a devbox."""
@@ -395,14 +428,17 @@ async def tunnel(args) -> None:
         print(f"Tunnel creation failed with exit code {e.returncode}")
         sys.exit(e.returncode)
 
+
 # File operations
 async def devbox_read(args) -> None:
     """Compatibility wrapper: read a file from a devbox (API)."""
     await read_file(args)
 
+
 async def devbox_write(args) -> None:
     """Compatibility wrapper: write a file to a devbox (API)."""
     await write_file(args)
+
 
 async def read_file(args) -> None:
     """Read a file from a devbox."""
@@ -416,6 +452,7 @@ async def read_file(args) -> None:
     print(
         f"Wrote remote file {args.remote} from devbox {args.id} to local file {args.output}"
     )
+
 
 async def write_file(args) -> None:
     """Write a file to a devbox."""
@@ -433,6 +470,7 @@ async def write_file(args) -> None:
         f"Wrote local file {args.input} to remote file {args.remote} on devbox {args.id}"
     )
 
+
 async def upload_file(args) -> None:
     """Upload a file to a devbox."""
     assert args.id is not None
@@ -444,6 +482,7 @@ async def upload_file(args) -> None:
             id=args.id, path=args.path, file=f
         )
     print(f"Uploaded file {args.file} to {args.path}")
+
 
 async def download_file(args) -> None:
     """Download a file from a devbox."""
@@ -457,12 +496,14 @@ async def download_file(args) -> None:
     await result.write_to_file(args.output_path)
     print(f"File downloaded to {args.output_path}")
 
+
 # Snapshot operations
 async def snapshot(args) -> None:
     """Create a snapshot of a devbox."""
     assert args.devbox_id is not None
     snapshot = await runloop_api_client().devboxes.snapshot_disk_async(args.devbox_id)
     print(f"snapshot={snapshot.model_dump_json(indent=4)}")
+
 
 async def get_snapshot_status(args) -> None:
     """Get the status of a snapshot operation."""
@@ -471,6 +512,7 @@ async def get_snapshot_status(args) -> None:
         args.snapshot_id
     )
     print(f"snapshot_status={status.model_dump_json(indent=4)}")
+
 
 async def list_snapshots(args) -> None:
     """List all snapshots."""

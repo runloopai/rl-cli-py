@@ -6,6 +6,7 @@ import requests
 # Define the API endpoint
 base_url = "https://api.runloop.pro"
 
+
 def get_api_key() -> str:
     """Get the API key from environment variables."""
     return os.getenv("RUNLOOP_API_KEY")
