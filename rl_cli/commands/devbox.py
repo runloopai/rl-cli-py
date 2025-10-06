@@ -115,6 +115,25 @@ async def get_async_exec(args) -> None:
     )
     print(f"execution={devbox.model_dump_json(indent=4)}")
 
+async def send_stdin(args) -> None:
+    """Send stdin to a running async execution."""
+    assert args.id is not None
+    assert args.execution_id is not None
+
+    # Build request body
+    kwargs = {}
+    if hasattr(args, 'text') and args.text is not None:
+        kwargs['text'] = args.text
+    if hasattr(args, 'signal') and args.signal is not None:
+        kwargs['signal'] = args.signal
+
+    result = await runloop_api_client().devboxes.executions.send_std_in(
+        execution_id=args.execution_id,
+        devbox_id=args.id,
+        **kwargs
+    )
+    print(f"execution={result.model_dump_json(indent=4)}")
+
 async def logs(args) -> None:
     """Get devbox logs."""
     assert args.id is not None
