@@ -502,7 +502,6 @@ async def upload(args) -> None:
         async with aiohttp.ClientSession() as session:
             # Open and upload the file with progress tracking
             with open(file_path, "rb") as f:
-                bytes_uploaded = 0
                 print(f"Uploading {args.path} ({file_size} bytes)...", file=sys.stderr)
 
                 # Create a progress tracking reader
