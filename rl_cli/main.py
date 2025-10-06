@@ -185,6 +185,21 @@ def setup_devbox_parser(subparsers):
     get_async_parser.add_argument("--id", required=True, help="Devbox ID")
     get_async_parser.add_argument("--execution_id", required=True, help="Execution ID")
 
+    # Send stdin to async execution
+    send_stdin_parser = subparsers.add_parser(
+        "send_stdin", help="Send stdin to a running async execution"
+    )
+    send_stdin_parser.set_defaults(
+        func=lambda args: asyncio.create_task(devbox.send_stdin(args))
+    )
+    send_stdin_parser.add_argument("--id", required=True, help="Devbox ID")
+    send_stdin_parser.add_argument("--execution_id", required=True, help="Execution ID")
+    stdin_group = send_stdin_parser.add_mutually_exclusive_group(required=True)
+    stdin_group.add_argument("--text", help="Text content to send to stdin")
+    stdin_group.add_argument(
+        "--signal", choices=["EOF", "INTERRUPT"], help="Signal to send"
+    )
+
     # Logs
     logs_parser = subparsers.add_parser("logs", help="View devbox logs")
     logs_parser.set_defaults(func=lambda args: asyncio.create_task(devbox.logs(args)))
