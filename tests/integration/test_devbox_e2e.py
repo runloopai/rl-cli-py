@@ -272,21 +272,21 @@ async def test_devbox_logs(capsys):
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(60)  # 1 minute timeout for lifecycle operations
+@pytest.mark.timeout(300)  # 5 minute timeout for lifecycle operations (accounts for cold start)
 async def test_devbox_lifecycle_operations(capsys):
     """Test devbox lifecycle operations (suspend/resume)."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
         pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
 
         # Wait for devbox to be ready before testing lifecycle operations
-        is_ready = await _wait_for_devbox_ready(devbox_id, 60)
+        is_ready = await _wait_for_devbox_ready(devbox_id, 180)
         if not is_ready:
             pytest.skip(f"Devbox {devbox_id} not ready within timeout, skipping lifecycle test")
 
@@ -301,6 +301,11 @@ async def test_devbox_lifecycle_operations(capsys):
             await run()
         resume_out = capsys.readouterr().out
         assert isinstance(resume_out, str)
+
+        # Wait for devbox to be ready again after resume (may require cold start)
+        is_ready_after_resume = await _wait_for_devbox_ready(devbox_id, 180)
+        if not is_ready_after_resume:
+            pytest.skip(f"Devbox {devbox_id} not ready after resume within timeout")
 
     finally:
         # Cleanup: shutdown created devboxes
