@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 
 [[package]]
@@ -804,7 +804,7 @@ requires-dist = [
     { name = "pytest-xdist", marker = "extra == 'dev'" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "runloop-api-client", specifier = "==0.64.0" },
+    { name = "runloop-api-client", specifier = "==0.66.1" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "zstandard", specifier = ">=0.22.0" },
 ]
@@ -838,7 +838,7 @@ wheels = [
 
 [[package]]
 name = "runloop-api-client"
-version = "0.64.0"
+version = "0.66.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -849,9 +849,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "uuid-utils" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/52/01/533b0b6c97cf90fba74a43efadabbe301dac108de9e5079bdc581075771e/runloop_api_client-0.64.0.tar.gz", hash = "sha256:479296039386f36f6c81269c541549995c58f72c974b49c979a2899d05ef9696", size = 306809, upload-time = "2025-10-06T22:57:01.706Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fb/8b/cfb603162a59a744eb3fce4d2fe33b27bfb64797872bd88bd548db3077f1/runloop_api_client-0.66.1.tar.gz", hash = "sha256:ba4bec099c630735a97bc81d1fd2f79f8461fe2251713ab6ce38739d13439586", size = 305391, upload-time = "2025-10-23T22:14:06.451Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/44/feace59bc3d9ca1bf14cc837ab84264f767271791775637e0f908c79cc29/runloop_api_client-0.64.0-py3-none-any.whl", hash = "sha256:79089b6664e02023aeee7e77bc7566fd360ed5a832a7e8a6b156a95c26aa2ba3", size = 221376, upload-time = "2025-10-06T22:57:00.276Z" },
+    { url = "https://files.pythonhosted.org/packages/62/6e/97bcf51e0f14b96b32c22f1f7fab6d6aa9a855f74dc78dcb4fe2a4d8114b/runloop_api_client-0.66.1-py3-none-any.whl", hash = "sha256:6d77b538b1d91b80e8ae87acfe3ae0c83c3d816f19b08935d141c643dddd6321", size = 223927, upload-time = "2025-10-23T22:14:04.787Z" },
 ]
 
 [[package]]
