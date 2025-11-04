@@ -294,6 +294,8 @@ Host {args.id}
   User {user}
   IdentityFile {keyfile_path}
   StrictHostKeyChecking no
+  ServerAliveInterval 15
+  ServerAliveCountMax 3
   ProxyCommand openssl s_client -quiet -servername %h -connect {ssh_url()} 2>/dev/null
             """
         )
@@ -310,6 +312,10 @@ Host {args.id}
         f"ProxyCommand={proxy_command}",
         "-o",
         "StrictHostKeyChecking=no",
+        "-o",
+        "ServerAliveInterval=15",
+        "-o",
+        "ServerAliveCountMax=3",
         f"{user}@{url}",
     ]
     subprocess.run(command)
