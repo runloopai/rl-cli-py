@@ -299,7 +299,9 @@ Host {args.id}
         )
         return
 
-    proxy_command = f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2>/dev/null"
+    proxy_command = (
+        f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2>/dev/null"
+    )
     command = [
         "/usr/bin/ssh",
         "-i",
@@ -325,7 +327,9 @@ async def scp(args) -> None:
 
     keyfile_path, _, url = ssh_info
 
-    proxy_command = f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2> /dev/null"
+    proxy_command = (
+        f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2> /dev/null"
+    )
 
     scp_command = [
         "scp",
@@ -369,7 +373,9 @@ async def rsync(args) -> None:
 
     keyfile_path, _, url = ssh_info
 
-    proxy_command = f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2> /dev/null"
+    proxy_command = (
+        f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2> /dev/null"
+    )
 
     ssh_options = f"-i {keyfile_path} -o ProxyCommand='{proxy_command}' -o StrictHostKeyChecking=no"
 
@@ -416,7 +422,9 @@ async def tunnel(args) -> None:
 
     keyfile_path, _, url = ssh_info
 
-    proxy_command = f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2> /dev/null"
+    proxy_command = (
+        f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2> /dev/null"
+    )
     command = [
         "/usr/bin/ssh",
         "-i",
