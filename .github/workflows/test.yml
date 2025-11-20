@@ -19,10 +19,10 @@ jobs:
       fail-fast: false  # Continue with other jobs if one fails
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: runloopai/checkout@main
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: runloopai/setup-python@main
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'  # Enable pip caching
@@ -40,14 +40,14 @@ jobs:
         RUNLOOP_ENV: dev
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7
       with:
         file: ./coverage.xml
         fail_ci_if_error: false
         verbose: true
 
     - name: Upload test results
-      uses: actions/upload-artifact@v4
+      uses: runloopai/upload-artifact@main
       if: success() || failure()  # Run this step even if tests fail
       with:
         name: test-results
