@@ -16,15 +16,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: runloopai/checkout@main
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: runloopai/setup-python@main
         with:
           python-version: "3.13"
 
       - name: Cache pip
-        uses: actions/cache@v4
+        uses: runloopai/cache@main
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml', '**/uv.lock', '**/requirements.txt') }}
