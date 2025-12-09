@@ -190,7 +190,7 @@ async def shutdown(args) -> None:
 
 
 # SSH related functions
-async def get_ssh_key(devbox_id: str) -> tuple[str, str, str] | None:
+async def get_ssh_key(devbox_id: str) -> tuple[str, str, str, str] | None:
     """Get or create SSH key for a devbox."""
     result = await runloop_api_client().devboxes.create_ssh_key(devbox_id)
     if not result:
@@ -199,6 +199,7 @@ async def get_ssh_key(devbox_id: str) -> tuple[str, str, str] | None:
 
     key: str = result.ssh_private_key or ""
     url: str = result.url or ""
+    user: str = result.ssh_user or "user"
 
     os.makedirs(os.path.expanduser("~/.runloop/ssh_keys"), exist_ok=True)
     keyfile_path = os.path.expanduser(f"~/.runloop/ssh_keys/{devbox_id}.pem")
@@ -208,7 +209,7 @@ async def get_ssh_key(devbox_id: str) -> tuple[str, str, str] | None:
         os.fsync(f.fileno())
     os.chmod(keyfile_path, 0o600)
 
-    return keyfile_path, key, url
+    return keyfile_path, key, url, user
 
 
 async def wait_for_ready(
@@ -273,18 +274,11 @@ async def ssh(args) -> None:
             print(f"Devbox {args.id} is not ready. Please try again later.")
             return
 
-    devbox = await runloop_api_client().devboxes.retrieve(args.id)
-    user = (
-        devbox.launch_parameters.user_parameters.username
-        if devbox.launch_parameters.user_parameters
-        else "user"
-    )
-
     ssh_info = await get_ssh_key(args.id)
     if not ssh_info:
         return
 
-    keyfile_path, _, url = ssh_info
+    keyfile_path, _, url, user = ssh_info
 
     if args.config_only:
         print(
@@ -331,7 +325,7 @@ async def scp(args) -> None:
     if not ssh_info:
         return
 
-    keyfile_path, _, url = ssh_info
+    keyfile_path, _, url, user = ssh_info
 
     proxy_command = (
         f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2> /dev/null"
@@ -351,12 +345,12 @@ async def scp(args) -> None:
         scp_command.extend(shlex.split(args.scp_options))
 
     if args.src.startswith(":"):
-        scp_command.append(f"user@{url}:{args.src[1:]}")  # Remove the leading ':'
+        scp_command.append(f"{user}@{url}:{args.src[1:]}")  # Remove the leading ':'
         scp_command.append(args.dst)
     else:
         scp_command.append(args.src)
         if args.dst.startswith(":"):
-            scp_command.append(f"user@{url}:{args.dst[1:]}")  # Remove the leading ':'
+            scp_command.append(f"{user}@{url}:{args.dst[1:]}")  # Remove the leading ':'
         else:
             scp_command.append(args.dst)
 
@@ -377,7 +371,7 @@ async def rsync(args) -> None:
     if not ssh_info:
         return
 
-    keyfile_path, _, url = ssh_info
+    keyfile_path, _, url, user = ssh_info
 
     proxy_command = (
         f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2> /dev/null"
@@ -396,12 +390,14 @@ async def rsync(args) -> None:
         rsync_command.extend(shlex.split(args.rsync_options))
 
     if args.src.startswith(":"):
-        rsync_command.append(f"user@{url}:{args.src[1:]}")  # Remove the leading ':'
+        rsync_command.append(f"{user}@{url}:{args.src[1:]}")  # Remove the leading ':'
         rsync_command.append(args.dst)
     else:
         rsync_command.append(args.src)
         if args.dst.startswith(":"):
-            rsync_command.append(f"user@{url}:{args.dst[1:]}")  # Remove the leading ':'
+            rsync_command.append(
+                f"{user}@{url}:{args.dst[1:]}"
+            )  # Remove the leading ':'
         else:
             rsync_command.append(args.dst)
 
@@ -426,7 +422,7 @@ async def tunnel(args) -> None:
     if not ssh_info:
         return
 
-    keyfile_path, _, url = ssh_info
+    keyfile_path, _, url, user = ssh_info
 
     proxy_command = (
         f"openssl s_client -quiet -servername %h -connect {ssh_url()} 2> /dev/null"
@@ -442,7 +438,7 @@ async def tunnel(args) -> None:
         "-N",  # Do not execute a remote command
         "-L",
         f"{local_port}:localhost:{remote_port}",
-        f"user@{url}",
+        f"{user}@{url}",
     ]
 
     print(f"Starting tunnel: local port {local_port} -> remote port {remote_port}")

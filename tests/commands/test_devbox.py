@@ -223,7 +223,7 @@ async def test_logs_printing():
 @pytest.mark.asyncio
 async def test_scp_invocation_builds_command():
     """Test scp builds the correct command and executes it."""
-    with patch('rl_cli.commands.devbox.get_ssh_key', new=AsyncMock(return_value=("/tmp/key.pem", "key", "host.example"))), \
+    with patch('rl_cli.commands.devbox.get_ssh_key', new=AsyncMock(return_value=("/tmp/key.pem", "key", "host.example", "test-user"))), \
          patch('rl_cli.commands.devbox.ssh_url', return_value="ssh.runloop.ai:443"), \
          patch('subprocess.run') as mock_run:
         args = AsyncMock()
@@ -238,12 +238,12 @@ async def test_scp_invocation_builds_command():
         cmd = mock_run.call_args.kwargs.get('args') or mock_run.call_args[0][0]
         # Ensure scp is invoked and remote path correctly prefixed
         assert cmd[0] == "scp"
-        assert f"user@host.example:/remote.txt" in cmd
+        assert f"test-user@host.example:/remote.txt" in cmd
 
 @pytest.mark.asyncio
 async def test_rsync_invocation_builds_command():
     """Test rsync builds the correct command and executes it."""
-    with patch('rl_cli.commands.devbox.get_ssh_key', new=AsyncMock(return_value=("/tmp/key.pem", "key", "host.example"))), \
+    with patch('rl_cli.commands.devbox.get_ssh_key', new=AsyncMock(return_value=("/tmp/key.pem", "key", "host.example", "test-user"))), \
          patch('rl_cli.commands.devbox.ssh_url', return_value="ssh.runloop.ai:443"), \
          patch('subprocess.run') as mock_run:
         args = AsyncMock()
@@ -260,7 +260,7 @@ async def test_rsync_invocation_builds_command():
         # Contains -e with ssh and proxy command
         assert "-e" in cmd
         # Ensure remote arg contains user@host
-        assert any(arg.startswith("user@host.example:") for arg in cmd)
+        assert any(arg.startswith("test-user@host.example:") for arg in cmd)
 
 @pytest.mark.asyncio
 async def test_suspend_devbox():
@@ -331,6 +331,7 @@ async def test_get_ssh_key():
     mock_ssh_key_result = AsyncMock()
     mock_ssh_key_result.ssh_private_key = "-----BEGIN PRIVATE KEY-----\ntest-key-content\n-----END PRIVATE KEY-----"
     mock_ssh_key_result.url = "test-host"
+    mock_ssh_key_result.ssh_user = "test-user"
     
     mock_api_client = AsyncMock()
     mock_api_client.devboxes = AsyncMock()
@@ -347,11 +348,12 @@ async def test_get_ssh_key():
         result = await devbox.get_ssh_key("test-devbox-id")
         
         assert result is not None
-        keyfile_path, username, url = result
+        keyfile_path, key, url, user = result
         
         assert keyfile_path.endswith("test-devbox-id.pem")
-        assert username == "-----BEGIN PRIVATE KEY-----\ntest-key-content\n-----END PRIVATE KEY-----"
+        assert key == "-----BEGIN PRIVATE KEY-----\ntest-key-content\n-----END PRIVATE KEY-----"
         assert url == "test-host"
+        assert user == "test-user"
         
         mock_api_client.devboxes.create_ssh_key.assert_called_once_with("test-devbox-id")
         mock_makedirs.assert_called_once()
@@ -381,6 +383,7 @@ async def test_ssh_command():
     mock_ssh_key_result = AsyncMock()
     mock_ssh_key_result.ssh_private_key = "test-key"
     mock_ssh_key_result.url = "test-host"
+    mock_ssh_key_result.ssh_user = "test-user"
     
     mock_api_client = AsyncMock()
     mock_api_client.devboxes = AsyncMock()
@@ -404,11 +407,6 @@ async def test_ssh_command():
         args.poll_interval = 3
         args.config_only = False
         
-        # Mock devbox retrieval for username
-        mock_devbox = AsyncMock()
-        mock_devbox.launch_parameters.user_parameters.username = "test-user"
-        mock_api_client.devboxes.retrieve = AsyncMock(return_value=mock_devbox)
-        
         await devbox.ssh(args)
         
         mock_run.assert_called_once()
@@ -422,6 +420,7 @@ async def test_tunnel_command():
     mock_ssh_key_result = AsyncMock()
     mock_ssh_key_result.ssh_private_key = "test-key"
     mock_ssh_key_result.url = "test-host"
+    mock_ssh_key_result.ssh_user = "test-user"
     
     mock_api_client = AsyncMock()
     mock_api_client.devboxes = AsyncMock()
@@ -757,14 +756,11 @@ async def test_ssh_with_no_wait():
     mock_ssh_key_result = AsyncMock()
     mock_ssh_key_result.ssh_private_key = "test-key"
     mock_ssh_key_result.url = "test-host"
-    
-    mock_devbox = AsyncMock()
-    mock_devbox.launch_parameters.user_parameters.username = "test-user"
+    mock_ssh_key_result.ssh_user = "test-user"
     
     mock_api_client = AsyncMock()
     mock_api_client.devboxes = AsyncMock()
     mock_api_client.devboxes.create_ssh_key = AsyncMock(return_value=mock_ssh_key_result)
-    mock_api_client.devboxes.retrieve = AsyncMock(return_value=mock_devbox)
 
     runloop_api_client.cache_clear()
 
@@ -793,14 +789,11 @@ async def test_ssh_config_only_with_no_wait():
     mock_ssh_key_result = AsyncMock()
     mock_ssh_key_result.ssh_private_key = "test-key"
     mock_ssh_key_result.url = "test-host"
-    
-    mock_devbox = AsyncMock()
-    mock_devbox.launch_parameters.user_parameters.username = "test-user"
+    mock_ssh_key_result.ssh_user = "test-user"
     
     mock_api_client = AsyncMock()
     mock_api_client.devboxes = AsyncMock()
     mock_api_client.devboxes.create_ssh_key = AsyncMock(return_value=mock_ssh_key_result)
-    mock_api_client.devboxes.retrieve = AsyncMock(return_value=mock_devbox)
 
     runloop_api_client.cache_clear()
 
