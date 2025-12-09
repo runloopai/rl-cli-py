@@ -395,7 +395,9 @@ async def rsync(args) -> None:
     else:
         rsync_command.append(args.src)
         if args.dst.startswith(":"):
-            rsync_command.append(f"{user}@{url}:{args.dst[1:]}")  # Remove the leading ':'
+            rsync_command.append(
+                f"{user}@{url}:{args.dst[1:]}"
+            )  # Remove the leading ':'
         else:
             rsync_command.append(args.dst)
 
