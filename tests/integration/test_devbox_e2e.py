@@ -3,10 +3,9 @@
 These tests require RUNLOOP_API_KEY environment variable to be set.
 They make real API calls and create/manage actual devboxes.
 """
-import json
+
 import os
 import re
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +17,7 @@ from rl_cli.main import run
 def clear_api_cache():
     """Fixture to clear API client cache before each test to ensure real API calls."""
     from rl_cli.utils import runloop_api_client
+
     runloop_api_client.cache_clear()
     yield
     runloop_api_client.cache_clear()
@@ -27,7 +27,7 @@ async def _create_test_devbox(capsys) -> str:
     """Helper function to create a test devbox and return its ID."""
     argv = [
         "rl",
-        "devbox", 
+        "devbox",
         "create",
         "--architecture",
         "arm64",
@@ -40,19 +40,65 @@ async def _create_test_devbox(capsys) -> str:
         await run()
 
     captured = capsys.readouterr()
-    
+
     # Parse devbox id from output - the format is 'create devbox={...}'
     m = re.search(r'"id":\s*"([^"]+)"', captured.out)
     assert m, f"did not find devbox id in output:\n{captured.out}"
     devbox_id = m.group(1)
-    
+
     return devbox_id
 
 
 async def _wait_for_devbox_ready(devbox_id: str, timeout_seconds: int = 60) -> bool:
     """Helper function to wait for a devbox to be ready."""
     from rl_cli.commands.devbox import wait_for_ready
+
     return await wait_for_ready(devbox_id, timeout_seconds, 3)
+
+
+async def _wait_for_devbox_state(
+    devbox_id: str,
+    target_state: str,
+    timeout_seconds: int = 60,
+    poll_interval_seconds: int = 3,
+) -> bool:
+    """Helper function to wait for a devbox to reach a specific state."""
+    import asyncio
+    import time
+    from rl_cli.utils import runloop_api_client
+
+    start_time = time.time()
+
+    while True:
+        try:
+            devbox = await runloop_api_client().devboxes.retrieve(devbox_id)
+
+            if devbox.status == target_state:
+                return True
+            elif devbox.status == "failure":
+                print(f"Devbox {devbox_id} failed (status: {devbox.status})")
+                return False
+
+            elapsed = time.time() - start_time
+            if elapsed >= timeout_seconds:
+                print(
+                    f"Timeout waiting for devbox {devbox_id} to reach {target_state} "
+                    f"(current: {devbox.status}) after {timeout_seconds} seconds"
+                )
+                return False
+
+            await asyncio.sleep(poll_interval_seconds)
+
+        except Exception as e:
+            elapsed = time.time() - start_time
+            if elapsed >= timeout_seconds:
+                print(
+                    f"Timeout waiting for devbox {devbox_id} to reach {target_state} "
+                    f"after {timeout_seconds} seconds (error: {e})"
+                )
+                return False
+
+            await asyncio.sleep(poll_interval_seconds)
 
 
 async def _cleanup_devbox(devbox_id: str):
@@ -72,10 +118,12 @@ async def test_devbox_create_and_get(capsys):
     # Require an API key
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         # Create devbox (returns immediately like object E2E tests)
         devbox_id = await _create_test_devbox(capsys)
@@ -101,8 +149,10 @@ async def test_devbox_list(capsys):
     """Test listing devboxes."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     # Test list command with limit to prevent hanging on large result sets
     with patch("sys.argv", ["rl", "devbox", "list", "--limit", "5"]):
         await run()
@@ -117,17 +167,19 @@ async def test_devbox_basic_lifecycle(capsys):
     """Test basic devbox lifecycle operations."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
 
         # Test basic operations that work on any devbox state
         # Just test that the commands execute without error
-        
+
         # Test get (should always work)
         with patch("sys.argv", ["rl", "devbox", "get", "--id", devbox_id]):
             await run()
@@ -141,14 +193,16 @@ async def test_devbox_basic_lifecycle(capsys):
             await _cleanup_devbox(devbox_id)
 
 
-@pytest.mark.asyncio  
+@pytest.mark.asyncio
 @pytest.mark.timeout(30)  # 30 second timeout for snapshot list
 async def test_devbox_snapshot_list(capsys):
     """Test listing snapshots (doesn't require creating a devbox)."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     # Test list snapshots (works without any devboxes)
     with patch("sys.argv", ["rl", "devbox", "snapshot", "list"]):
         await run()
@@ -162,10 +216,12 @@ async def test_devbox_exec(capsys):
     """Test devbox command execution."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
@@ -173,14 +229,23 @@ async def test_devbox_exec(capsys):
         # Wait for devbox to be ready before testing exec
         is_ready = await _wait_for_devbox_ready(devbox_id, 60)
         if not is_ready:
-            pytest.skip(f"Devbox {devbox_id} not ready within timeout, skipping exec test")
+            pytest.skip(
+                f"Devbox {devbox_id} not ready within timeout, skipping exec test"
+            )
 
-        # Test execute command 
-        with patch("sys.argv", [
-            "rl", "devbox", "exec",
-            "--id", devbox_id,
-            "--command", "echo 'test execution'"
-        ]):
+        # Test execute command
+        with patch(
+            "sys.argv",
+            [
+                "rl",
+                "devbox",
+                "exec",
+                "--id",
+                devbox_id,
+                "--command",
+                "echo 'test execution'",
+            ],
+        ):
             await run()
         exec_out = capsys.readouterr().out
         assert isinstance(exec_out, str)
@@ -198,10 +263,12 @@ async def test_devbox_exec_async(capsys):
     """Test devbox async command execution."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
@@ -209,31 +276,47 @@ async def test_devbox_exec_async(capsys):
         # Wait for devbox to be ready before testing async exec
         is_ready = await _wait_for_devbox_ready(devbox_id, 60)
         if not is_ready:
-            pytest.skip(f"Devbox {devbox_id} not ready within timeout, skipping async exec test")
+            pytest.skip(
+                f"Devbox {devbox_id} not ready within timeout, skipping async exec test"
+            )
 
         # Test async execute command
-        with patch("sys.argv", [
-            "rl", "devbox", "exec_async",
-            "--id", devbox_id,
-            "--command", "echo 'async test'"
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "rl",
+                "devbox",
+                "exec_async",
+                "--id",
+                devbox_id,
+                "--command",
+                "echo 'async test'",
+            ],
+        ):
             await run()
         exec_out = capsys.readouterr().out
         assert isinstance(exec_out, str)
-        
+
         # If we get an execution ID, test get_async
         if "execution=" in exec_out:
             # Parse execution ID from output
             m = re.search(r'execution=.*?"id":\s*"([^"]+)"', exec_out, re.DOTALL)
             if m:
                 execution_id = m.group(1)
-                
+
                 # Test get async execution status
-                with patch("sys.argv", [
-                    "rl", "devbox", "get_async",
-                    "--id", devbox_id,
-                    "--execution_id", execution_id
-                ]):
+                with patch(
+                    "sys.argv",
+                    [
+                        "rl",
+                        "devbox",
+                        "get_async",
+                        "--id",
+                        devbox_id,
+                        "--execution_id",
+                        execution_id,
+                    ],
+                ):
                     await run()
                 status_out = capsys.readouterr().out
                 assert isinstance(status_out, str)
@@ -250,10 +333,12 @@ async def test_devbox_logs(capsys):
     """Test devbox logs retrieval."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
@@ -277,10 +362,12 @@ async def test_devbox_lifecycle_operations(capsys):
     """Test devbox lifecycle operations (suspend/resume)."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
@@ -288,13 +375,24 @@ async def test_devbox_lifecycle_operations(capsys):
         # Wait for devbox to be ready before testing lifecycle operations
         is_ready = await _wait_for_devbox_ready(devbox_id, 60)
         if not is_ready:
-            pytest.skip(f"Devbox {devbox_id} not ready within timeout, skipping lifecycle test")
+            pytest.skip(
+                f"Devbox {devbox_id} not ready within timeout, skipping lifecycle test"
+            )
 
         # Test suspend
         with patch("sys.argv", ["rl", "devbox", "suspend", "--id", devbox_id]):
             await run()
         suspend_out = capsys.readouterr().out
         assert isinstance(suspend_out, str)
+
+        # Wait for devbox to actually reach suspended state before resuming
+        is_suspended = await _wait_for_devbox_state(
+            devbox_id, "suspended", timeout_seconds=60
+        )
+        if not is_suspended:
+            pytest.skip(
+                f"Devbox {devbox_id} did not reach suspended state within timeout, skipping resume test"
+            )
 
         # Test resume
         with patch("sys.argv", ["rl", "devbox", "resume", "--id", devbox_id]):
@@ -314,10 +412,12 @@ async def test_devbox_file_operations(capsys, tmp_path):
     """Test devbox file read/write operations."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
@@ -325,7 +425,9 @@ async def test_devbox_file_operations(capsys, tmp_path):
         # Wait for devbox to be ready before testing file operations
         is_ready = await _wait_for_devbox_ready(devbox_id, 60)
         if not is_ready:
-            pytest.skip(f"Devbox {devbox_id} not ready within timeout, skipping file operations test")
+            pytest.skip(
+                f"Devbox {devbox_id} not ready within timeout, skipping file operations test"
+            )
 
         # Create test files
         input_file = tmp_path / "test_input.txt"
@@ -334,23 +436,39 @@ async def test_devbox_file_operations(capsys, tmp_path):
         remote_path = "/tmp/e2e_test_file.txt"
 
         # Test write file
-        with patch("sys.argv", [
-            "rl", "devbox", "write", 
-            "--id", devbox_id,
-            "--input", str(input_file),
-            "--remote", remote_path
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "rl",
+                "devbox",
+                "write",
+                "--id",
+                devbox_id,
+                "--input",
+                str(input_file),
+                "--remote",
+                remote_path,
+            ],
+        ):
             await run()
         write_out = capsys.readouterr().out
         assert isinstance(write_out, str)
 
         # Test read file
-        with patch("sys.argv", [
-            "rl", "devbox", "read",
-            "--id", devbox_id, 
-            "--remote", remote_path,
-            "--output", str(output_file)
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "rl",
+                "devbox",
+                "read",
+                "--id",
+                devbox_id,
+                "--remote",
+                remote_path,
+                "--output",
+                str(output_file),
+            ],
+        ):
             await run()
         read_out = capsys.readouterr().out
         assert isinstance(read_out, str)
@@ -367,10 +485,12 @@ async def test_devbox_upload_download(capsys, tmp_path):
     """Test devbox file upload/download operations."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
@@ -378,7 +498,9 @@ async def test_devbox_upload_download(capsys, tmp_path):
         # Wait for devbox to be ready before testing upload/download
         is_ready = await _wait_for_devbox_ready(devbox_id, 60)
         if not is_ready:
-            pytest.skip(f"Devbox {devbox_id} not ready within timeout, skipping upload/download test")
+            pytest.skip(
+                f"Devbox {devbox_id} not ready within timeout, skipping upload/download test"
+            )
 
         # Create test file
         test_file = tmp_path / "upload_test.txt"
@@ -387,23 +509,39 @@ async def test_devbox_upload_download(capsys, tmp_path):
         download_path = tmp_path / "downloaded_file.txt"
 
         # Test upload
-        with patch("sys.argv", [
-            "rl", "devbox", "upload_file",
-            "--id", devbox_id,
-            "--file", str(test_file),
-            "--path", remote_path
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "rl",
+                "devbox",
+                "upload_file",
+                "--id",
+                devbox_id,
+                "--file",
+                str(test_file),
+                "--path",
+                remote_path,
+            ],
+        ):
             await run()
         upload_out = capsys.readouterr().out
         assert isinstance(upload_out, str)
 
         # Test download
-        with patch("sys.argv", [
-            "rl", "devbox", "download_file",
-            "--id", devbox_id,
-            "--file_path", remote_path,
-            "--output_path", str(download_path)
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "rl",
+                "devbox",
+                "download_file",
+                "--id",
+                devbox_id,
+                "--file_path",
+                remote_path,
+                "--output_path",
+                str(download_path),
+            ],
+        ):
             await run()
         download_out = capsys.readouterr().out
         assert isinstance(download_out, str)
@@ -420,10 +558,12 @@ async def test_devbox_snapshot_operations(capsys):
     """Test devbox snapshot create and status operations."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
@@ -431,29 +571,37 @@ async def test_devbox_snapshot_operations(capsys):
         # Wait for devbox to be ready before testing snapshot operations
         is_ready = await _wait_for_devbox_ready(devbox_id, 60)
         if not is_ready:
-            pytest.skip(f"Devbox {devbox_id} not ready within timeout, skipping snapshot test")
+            pytest.skip(
+                f"Devbox {devbox_id} not ready within timeout, skipping snapshot test"
+            )
 
         # Test create snapshot
-        with patch("sys.argv", [
-            "rl", "devbox", "snapshot", "create",
-            "--devbox_id", devbox_id
-        ]):
+        with patch(
+            "sys.argv", ["rl", "devbox", "snapshot", "create", "--devbox_id", devbox_id]
+        ):
             await run()
         snapshot_out = capsys.readouterr().out
         assert isinstance(snapshot_out, str)
-        
+
         # If we get a snapshot ID, test snapshot status
         if "snapshot=" in snapshot_out:
             # Parse snapshot ID from output
             m = re.search(r'snapshot=.*?"id":\s*"([^"]+)"', snapshot_out, re.DOTALL)
             if m:
                 snapshot_id = m.group(1)
-                
+
                 # Test get snapshot status
-                with patch("sys.argv", [
-                    "rl", "devbox", "snapshot", "status",
-                    "--snapshot_id", snapshot_id
-                ]):
+                with patch(
+                    "sys.argv",
+                    [
+                        "rl",
+                        "devbox",
+                        "snapshot",
+                        "status",
+                        "--snapshot_id",
+                        snapshot_id,
+                    ],
+                ):
                     await run()
                 status_out = capsys.readouterr().out
                 assert isinstance(status_out, str)
@@ -470,10 +618,12 @@ async def test_devbox_ssh_operations(capsys, tmp_path):
     """Test devbox SSH-related operations (non-interactive)."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
@@ -481,15 +631,15 @@ async def test_devbox_ssh_operations(capsys, tmp_path):
         # Wait for devbox to be ready before testing SSH operations
         is_ready = await _wait_for_devbox_ready(devbox_id, 60)
         if not is_ready:
-            pytest.skip(f"Devbox {devbox_id} not ready within timeout, skipping SSH operations test")
+            pytest.skip(
+                f"Devbox {devbox_id} not ready within timeout, skipping SSH operations test"
+            )
 
         # Test SSH config generation (config-only, no actual connection)
-        with patch("sys.argv", [
-            "rl", "devbox", "ssh",
-            "--id", devbox_id,
-            "--config-only",
-            "--no-wait"
-        ]):
+        with patch(
+            "sys.argv",
+            ["rl", "devbox", "ssh", "--id", devbox_id, "--config-only", "--no-wait"],
+        ):
             await run()
         ssh_out = capsys.readouterr().out
         assert isinstance(ssh_out, str)
@@ -497,23 +647,35 @@ async def test_devbox_ssh_operations(capsys, tmp_path):
         # Test SCP (dry run or basic syntax check)
         test_file = tmp_path / "scp_test.txt"
         test_file.write_text("SCP test")
-        with patch("sys.argv", [
-            "rl", "devbox", "scp",
-            "--id", devbox_id,
-            str(test_file),  # src (positional)
-            ":/tmp/scp_test.txt"  # dst (positional, :remote_path format)
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "rl",
+                "devbox",
+                "scp",
+                "--id",
+                devbox_id,
+                str(test_file),  # src (positional)
+                ":/tmp/scp_test.txt",  # dst (positional, :remote_path format)
+            ],
+        ):
             await run()
         scp_out = capsys.readouterr().out
         assert isinstance(scp_out, str)
 
         # Test rsync (dry run or basic syntax check)
-        with patch("sys.argv", [
-            "rl", "devbox", "rsync",
-            "--id", devbox_id,
-            str(tmp_path),  # src (positional)
-            ":/tmp/rsync_test/"  # dst (positional, :remote_path format)
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "rl",
+                "devbox",
+                "rsync",
+                "--id",
+                devbox_id,
+                str(tmp_path),  # src (positional)
+                ":/tmp/rsync_test/",  # dst (positional, :remote_path format)
+            ],
+        ):
             await run()
         rsync_out = capsys.readouterr().out
         assert isinstance(rsync_out, str)
@@ -530,10 +692,12 @@ async def test_devbox_tunnel_basic(capsys):
     """Test devbox tunnel command (basic syntax check only)."""
     api_key = os.environ.get("RUNLOOP_API_KEY")
     if not api_key:
-        pytest.fail("RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment.")
-    
+        pytest.fail(
+            "RUNLOOP_API_KEY is required for end-to-end tests. Set it in the environment."
+        )
+
     created_devbox_ids = []
-    
+
     try:
         devbox_id = await _create_test_devbox(capsys)
         created_devbox_ids.append(devbox_id)
@@ -541,15 +705,23 @@ async def test_devbox_tunnel_basic(capsys):
         # Wait for devbox to be ready before testing tunnel
         is_ready = await _wait_for_devbox_ready(devbox_id, 60)
         if not is_ready:
-            pytest.skip(f"Devbox {devbox_id} not ready within timeout, skipping tunnel test")
+            pytest.skip(
+                f"Devbox {devbox_id} not ready within timeout, skipping tunnel test"
+            )
 
         # Test tunnel command (will likely fail but should not hang)
         # Using a short timeout to prevent actual tunnel establishment
-        with patch("sys.argv", [
-            "rl", "devbox", "tunnel",
-            "--id", devbox_id,
-            "8080:80"  # Correct format: local:remote
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "rl",
+                "devbox",
+                "tunnel",
+                "--id",
+                devbox_id,
+                "8080:80",  # Correct format: local:remote
+            ],
+        ):
             await run()
         tunnel_out = capsys.readouterr().out
         assert isinstance(tunnel_out, str)
@@ -560,6 +732,8 @@ async def test_devbox_tunnel_basic(capsys):
             await _cleanup_devbox(devbox_id)
 
 
-@pytest.mark.skip(reason="SSH connection requires interactive session and is hard to test in CI")
+@pytest.mark.skip(
+    reason="SSH connection requires interactive session and is hard to test in CI"
+)
 def test_ssh_connection():
     pass
