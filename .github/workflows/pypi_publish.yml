@@ -12,18 +12,18 @@ on:
         
 jobs:
   build-and-publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
     - uses: runloopai/checkout@main
     
     - name: Set up Python
       uses: runloopai/setup-python@main
       with:
-        python-version: '3.12'
+        python-version: "3.12"
+        cache: pip
     
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
         pip install flit
     
     - name: Set version
