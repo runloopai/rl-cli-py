@@ -1,5 +1,7 @@
 # rl-cli
 
+*Note: This is deprecated. Please use https://github.com/runloopai/rl-cli instead*
+
 A command line utility for interacting with runloop APIs.
 
 # Table of Contents
